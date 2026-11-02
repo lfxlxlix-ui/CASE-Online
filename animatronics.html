@@ -28,7 +28,7 @@ button:hover,label:hover{background:#3a2028}input{width:100%;margin:8px 0 16px}
 
 const stage=document.querySelector('#stage'),filesBox=document.querySelector('#files'),clipsBox=document.querySelector('#clips'),info=document.querySelector('#info');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x09090c);
-const camera=new THREE.PerspectiveCamera(45,1,.01,1000);camera.position.set(3,2,4);
+const camera=new THREE.PerspectiveCamera(45,1,.001,100000000);camera.position.set(3,2,4);
 let renderer;try{renderer=new THREE.WebGLRenderer({antialias:false});}catch(err){document.querySelector('#info').textContent='Браузер не поддерживает WebGL: '+err.message;throw err;}renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));if('outputEncoding' in renderer && THREE.sRGBEncoding){renderer.outputEncoding=THREE.sRGBEncoding;}stage.appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
 scene.add(new THREE.HemisphereLight(0xc5d2e8,0x29202b,2));
@@ -41,7 +41,7 @@ if(window.ResizeObserver){new ResizeObserver(resize).observe(stage)}else{window.
 function animate(){requestAnimationFrame(animate);const dt=clock.getDelta();if(mixer)mixer.update(dt);controls.update();renderer.render(scene,camera)}animate();
 function show(item){if(current)scene.remove(current);current=item.gltf.scene;scene.add(current);mixer=null;clipsBox.innerHTML='';
 const box=new THREE.Box3().setFromObject(current),dims=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
-current.position.sub(center);const max=Math.max(dims.x,dims.y,dims.z)||1;camera.position.set(max*1.7,max*1.1,max*2.2);controls.target.set(0,0,0);controls.update();
+current.position.sub(center);const max=Math.max(dims.x,dims.y,dims.z)||1;const distance=(max/2)/Math.tan(THREE.Math.degToRad(camera.fov/2))*1.8;camera.near=Math.max(max/10000,0.001);camera.far=Math.max(distance*100,1000);camera.updateProjectionMatrix();camera.position.set(distance*0.8,distance*0.55,distance);controls.target.set(0,0,0);controls.update();
 if(item.gltf.animations.length){mixer=new THREE.AnimationMixer(current);item.gltf.animations.forEach(clip=>{const b=document.createElement('button');b.textContent='▶ '+(clip.name||'Анимация');b.onclick=()=>{mixer.stopAllAction();mixer.clipAction(clip).reset().play()};clipsBox.appendChild(b)})}
 info.textContent=item.name+'\nРазмер файла: '+(item.size/1048576).toFixed(2)+' МБ\nГабариты: '+dims.x.toFixed(2)+' × '+dims.y.toFixed(2)+' × '+dims.z.toFixed(2)+'\nАнимаций: '+item.gltf.animations.length;
 }
