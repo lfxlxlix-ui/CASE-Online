@@ -89,7 +89,7 @@ io.on("connection", socket => {
     const player = room.players.get(socket.id);
     if (!player) return callback({ ok: false, error: "Игрок не найден." });
     const survivorClasses = ["aimer", "medic", "support"];
-    const animatronics = ["owl", "cat"];
+    const animatronics = ["owl", "cat", "wolf", "bull"];
     if (payload.survivorClass !== undefined) {
       if (!survivorClasses.includes(payload.survivorClass)) return callback({ ok: false, error: "Неизвестный класс выжившего." });
       player.survivorClass = payload.survivorClass;
