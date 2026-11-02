@@ -96,7 +96,7 @@ io.on("connection", socket => {
     const room = rooms.get(socketRooms.get(socket.id));
     if (!room) return callback({ ok: false, error: "Сначала войди в комнату." });
     if (room.hostId !== socket.id) return callback({ ok: false, error: "Начать матч может создатель комнаты." });
-    if (room.players.size < 1) return callback({ ok: false, error: "Нет игроков." });
+    if (room.players.size < 2) return callback({ ok: false, error: "Для сетевого матча нужны минимум 2 игрока. Пригласи друга и дождись его подключения." });
     room.status = "playing";
     room.startedAt = Date.now();
     // Randomly select exactly one animatronic when there are at least two players.
