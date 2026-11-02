@@ -12,6 +12,12 @@
 #menu .actions#mainActions button:focus,#menu .actions#mainActions button:focus-visible,#menu .actions#mainActions button:active{outline:none!important;box-shadow:none!important}
 #menu .actions#mainActions button::-moz-focus-inner{border:0}
 #menu .card:has(#mainActions:not(.hidden)){background:transparent}
+/* Keep the expanded multiplayer lobby and loadout controls inside the viewport. */
+#menu .card:has(#multiPanel:not(.hidden)){top:2%;bottom:2%;left:0;right:0;width:100%;max-height:96%;overflow-y:auto;padding:12px 3vw 18px;}
+#menu #multiPanel{max-height:none;padding-bottom:12px}
+#menu #loadout:not(.hidden){display:block}
+#menu #loadout label{min-height:36px}
+
 #menu .note{display:none}
 /* Submenu controls use the same distressed horror-menu treatment as the main buttons */
 #menu .actions#playActions,#menu .actions#roleActions{
