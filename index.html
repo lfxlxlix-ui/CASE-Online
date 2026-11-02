@@ -100,7 +100,7 @@ $('power').textContent=Math.round(flashBattery)+'%';$('task').textContent='На�
 draw();requestAnimationFrame(loop)}
 window.addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();keys[k]=true;if(k==='f'&&running&&flashBattery>0)lightOn=!lightOn});
 window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-$('start').addEventListener('click',reset);$('again').addEventListener('click',reset);$('how').addEventListener('click',()=>alert('WASD — ходить. Подойди к золотому предохранителю и нажми E. Найди все три, затем иди к EXIT справа. F включает и выключает фонарь. Не подпускай существо близко!'));
+function bindButton(id,action){const el=$(id);if(!el)return;el.style.pointerEvents='auto';el.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();try{action()}catch(err){console.error(err);alert('Ошибка игры: '+err.message)}})}\nbindButton('start',reset);bindButton('again',reset);bindButton('how',()=>alert('WASD — ходить. Подойди к золотому предохранителю и нажми E. Найди все три, затем иди к EXIT справа. F включает и выключает фонарь. Не подпускай существо близко!'));
 draw();
 })();
 </script>
