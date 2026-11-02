@@ -22,6 +22,7 @@ function makeCode() {
 function publicRoom(room) {
   return {
     code: room.code,
+    hostId: room.hostId,
     status: room.status,
     maxPlayers: room.maxPlayers,
     players: [...room.players.values()].map(p => ({
