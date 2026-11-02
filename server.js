@@ -26,7 +26,7 @@ function publicRoom(room) {
     status: room.status,
     maxPlayers: room.maxPlayers,
     players: [...room.players.values()].map(p => ({
-      id: p.id, name: p.name, ready: p.ready, role: p.role || "survivor", survivorClass: p.survivorClass || "aimer", animatronicChoice: p.animatronicChoice || "owl", selectedRole: p.selectedRole || "survivor", x: p.x, y: p.y, angle: p.angle || 0
+      id: p.id, name: p.name, ready: p.ready, role: p.role || "survivor", survivorClass: p.survivorClass || "aimer", animatronicChoice: p.animatronicChoice || "owl", selectedRole: p.selectedRole || "survivor", character: p.character || null, x: p.x, y: p.y, angle: p.angle || 0
     }))
   };
 }
