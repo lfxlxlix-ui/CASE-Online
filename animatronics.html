@@ -21,7 +21,7 @@ button:hover,label:hover{background:#3a2028}input{width:100%;margin:8px 0 16px}
 <main><section id="stage"></section><aside>
 <strong>1. Выбери модели</strong>
 <input id="picker" type="file" accept=".glb,.gltf" multiple>
-<div id="files"></div><div id="clips"></div><div id="info">Сначала выбери GLB-файлы с компьютера.</div>
+<div id="files"></div><button id="spawn" disabled>Заспавнить модель</button><div id="clips"></div><div id="info">Сначала выбери GLB-файлы с компьютера.</div>
 <p class="note">Управление: зажми левую кнопку мыши и двигай мышь, чтобы вращать модель; колёсико — приблизить/отдалить. Если анимации есть, появятся кнопки ниже.</p>
 </aside></main>
 <script>
@@ -35,15 +35,16 @@ scene.add(new THREE.HemisphereLight(0xc5d2e8,0x29202b,2));
 const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(3,7,5);scene.add(key);
 const rim=new THREE.DirectionalLight(0xb72d3d,1.8);rim.position.set(-4,3,-4);scene.add(rim);
 scene.add(new THREE.GridHelper(10,20,0x61313a,0x28232a));
-let current=null,mixer=null;const clock=new THREE.Clock();const loaded=[];
+let current=null,mixer=null,pendingItem=null;const clock=new THREE.Clock();const loaded=[];const spawnButton=document.querySelector('#spawn');
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h)}
 if(window.ResizeObserver){new ResizeObserver(resize).observe(stage)}else{window.addEventListener("resize",resize)}resize();
 function animate(){requestAnimationFrame(animate);const dt=clock.getDelta();if(mixer)mixer.update(dt);controls.update();renderer.render(scene,camera)}animate();
-function show(item){if(current)scene.remove(current);current=item.gltf.scene;scene.add(current);mixer=null;clipsBox.innerHTML='';
+function show(item){pendingItem=item;spawnButton.disabled=false;spawnButton.style.opacity='1';info.textContent='Выбрано: '+item.name+'\\nНажми «Заспавнить модель», чтобы показать её на сцене.';}
+function spawn(item){if(current)scene.remove(current);current=item.gltf.scene;scene.add(current);mixer=null;clipsBox.innerHTML='';
 const box=new THREE.Box3().setFromObject(current),dims=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
 current.position.sub(center);const max=Math.max(dims.x,dims.y,dims.z)||1;const distance=(max/2)/Math.tan(THREE.Math.degToRad(camera.fov/2))*1.8;camera.near=Math.max(max/10000,0.001);camera.far=Math.max(distance*100,1000);camera.updateProjectionMatrix();camera.position.set(distance*0.8,distance*0.55,distance);controls.target.set(0,0,0);controls.update();
 if(item.gltf.animations.length){mixer=new THREE.AnimationMixer(current);item.gltf.animations.forEach(clip=>{const b=document.createElement('button');b.textContent='▶ '+(clip.name||'Анимация');b.onclick=()=>{mixer.stopAllAction();mixer.clipAction(clip).reset().play()};clipsBox.appendChild(b)})}
 info.textContent=item.name+'\nРазмер файла: '+(item.size/1048576).toFixed(2)+' МБ\nГабариты: '+dims.x.toFixed(2)+' × '+dims.y.toFixed(2)+' × '+dims.z.toFixed(2)+'\nАнимаций: '+item.gltf.animations.length;
 }
-document.querySelector('#picker').addEventListener('change',async e=>{filesBox.innerHTML='';loaded.length=0;for(const file of e.target.files){const url=URL.createObjectURL(file);try{const gltf=await new Promise(function(resolve,reject){new GLTFLoader().load(url,resolve,undefined,reject)});const item={name:file.name,size:file.size,gltf};loaded.push(item);const b=document.createElement('button');b.textContent='◉ '+file.name;b.onclick=()=>{filesBox.querySelectorAll('button').forEach(x=>x.style.borderColor='#6b303a');b.style.borderColor='#f16b78';show(item)};filesBox.appendChild(b);if(loaded.length===1)b.click()}catch(err){const b=document.createElement('button');b.textContent='Не удалось загрузить: '+file.name;filesBox.appendChild(b);info.textContent='Ошибка загрузки '+file.name+': '+err.message}finally{URL.revokeObjectURL(url)}}});
+spawnButton.addEventListener('click',function(){if(pendingItem)spawn(pendingItem)});\ndocument.querySelector('#picker').addEventListener('change',async e=>{filesBox.innerHTML='';loaded.length=0;pendingItem=null;spawnButton.disabled=true;for(const file of e.target.files){const url=URL.createObjectURL(file);try{const gltf=await new Promise(function(resolve,reject){new GLTFLoader().load(url,resolve,undefined,reject)});const item={name:file.name,size:file.size,gltf};loaded.push(item);const b=document.createElement('button');b.textContent='◉ '+file.name;b.onclick=()=>{filesBox.querySelectorAll('button').forEach(x=>x.style.borderColor='#6b303a');b.style.borderColor='#f16b78';show(item)};filesBox.appendChild(b);if(loaded.length===1){b.click()}}catch(err){const b=document.createElement('button');b.textContent='Не удалось загрузить: '+file.name;filesBox.appendChild(b);info.textContent='Ошибка загрузки '+file.name+': '+err.message}finally{URL.revokeObjectURL(url)}}});
 </script></body></html>
