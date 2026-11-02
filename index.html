@@ -37,8 +37,30 @@ for(const p of Object.values(remotePlayers)){let dx=p.x-px,dy=p.y-py,dist=Math.h
 if(role==='survivor'){let grd=ctx.createRadialGradient(W/2,H/2,4,W/2,H/2,flash?H*.65:H*.18);grd.addColorStop(0,'#00000000');grd.addColorStop(.55,night?'#00000010':'#00000044');grd.addColorStop(1,'#000000f5');ctx.fillStyle=grd;ctx.fillRect(0,0,W,H)}else if(night){ctx.fillStyle='#2dffe21c';ctx.fillRect(0,0,W,H)}
 }
 function end(title,text){running=false;$('endTitle').textContent=title;$('endText').textContent=text;$('end').classList.remove('hidden')}
-function loop(now){if(!running)return;let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0),s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);let speed=role==='animatronic'?2.35:2.05;let dx=(Math.cos(angle)*f-Math.sin(angle)*s)*speed*dt,dy=(Math.sin(angle)*f+Math.cos(angle)*s)*speed*dt;[px,py]=move(px,py,dx,dy);
-let dist=Math.hypot(mx-px,my-py);if(role==='survivor'){if(flash&&battery>0)battery=Math.max(0,battery-dt*1.7);if(!battery)flash=false;if(!networkGame&&elapsed>12){let a=Math.atan2(py-my,px-mx);[mx,my]=move(mx,my,Math.cos(a)*.58*dt,Math.sin(a)*.58*dt)}if(!networkGame&&dist<.45){end('ТЕБЯ ПОЙМАЛИ','Существо настигло тебя в коридоре. Вернись в меню и попробуй снова.');return}if(!networkGame&&px>14.1&&py>7&&py<9){end('ТЫ ВЫБРАЛСЯ','Ты добрался до выхода. Это пока тестовая карта.');return}$('objective').textContent='ФОНАРЬ '+Math.round(battery)+'% · НАЙДИ ВЫХОД'NaN,'Ты добрался до цели. Сетевой поиск игроков будет добавлен позже.');return}}if(networkGame&&socket?.connected&&now-lastNetSend>80){socket.emit('player:move',{x:px,y:py,angle});lastNetSend=now}$('clock').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');render();requestAnimationFrame(loop)}
+function loop(now){
+ if(!running)return;
+ let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;
+ let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
+ let s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
+ let speed=role==='animatronic'?2.35:2.05;
+ let dx=(Math.cos(angle)*f-Math.sin(angle)*s)*speed*dt;
+ let dy=(Math.sin(angle)*f+Math.cos(angle)*s)*speed*dt;
+ [px,py]=move(px,py,dx,dy);
+ let dist=Math.hypot(mx-px,my-py);
+ if(role==='survivor'){
+  if(flash&&battery>0)battery=Math.max(0,battery-dt*1.7);
+  if(!battery)flash=false;
+  if(!networkGame&&elapsed>12){let a=Math.atan2(py-my,px-mx);[mx,my]=move(mx,my,Math.cos(a)*.58*dt,Math.sin(a)*.58*dt)}
+  if(!networkGame&&dist<.45){end('ТЕБЯ ПОЙМАЛИ','Существо настигло тебя в коридоре. Вернись в меню и попробуй снова.');return}
+  if(!networkGame&&px>14.1&&py>7&&py<9){end('ТЫ ВЫБРАЛСЯ','Ты добрался до выхода. Это пока тестовая карта.');return}
+  $('objective').textContent='ФОНАРЬ '+Math.round(battery)+'% · НАЙДИ ВЫХОД';
+ }else{
+  $('objective').textContent=night?'НОЧНОЕ ЗРЕНИЕ ВКЛЮЧЕНО':'ПОИСК ИГРОКОВ';
+ }
+ if(networkGame&&socket?.connected&&now-lastNetSend>80){socket.emit('player:move',{x:px,y:py,angle});lastNetSend=now}
+ $('clock').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
+ render();requestAnimationFrame(loop)
+}
 window.addEventListener('keydown',e=>{let k=e.key.toLowerCase();keys[k]=true;if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();if(k==='f'&&running){if(role==='animatronic')night=!night;else if(battery>0)flash=!flash}if(k==='escape'&&running){running=false;$('hud').classList.add('hidden');$('menu').classList.remove('hidden')}});window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 canvas.addEventListener('click',()=>{if(running&&document.pointerLockElement!==canvas&&matchMedia('(pointer:fine)').matches)canvas.requestPointerLock?.()});
 document.addEventListener('mousemove',e=>{if(running&&document.pointerLockElement===canvas)angle+=e.movementX*.0035});
