@@ -13,6 +13,37 @@
 #menu .actions#mainActions button::-moz-focus-inner{border:0}
 #menu .card:has(#mainActions:not(.hidden)){background:transparent}
 #menu .note{display:none}
+/* Submenu controls use the same distressed horror-menu treatment as the main buttons */
+#menu .actions#playActions,#menu .actions#roleActions{
+ display:flex;flex-direction:row;align-items:center;justify-content:center;flex-wrap:wrap;
+ gap:clamp(12px,3vw,42px);width:100%;margin:0
+}
+#menu .actions#playActions button,#menu .actions#roleActions button,
+#menu #multiPanel>button,#menu #lobbyActions button{
+ background:transparent;color:#eee3e3;border:0;border-radius:0;padding:10px 14px;
+ font-family:"Creepster","Chiller","Old English Text MT",Impact,fantasy;
+ font-size:clamp(22px,3vw,36px);font-weight:900;letter-spacing:.08em;
+ -webkit-text-stroke:.45px #43070c;
+ text-shadow:0 2px 3px #000,0 0 7px #8e1721,0 0 15px rgba(120,0,12,.55);
+ text-align:center;white-space:normal;transition:transform .18s ease,filter .18s ease,color .18s ease
+}
+#menu .actions#playActions button:hover,#menu .actions#roleActions button:hover,
+#menu #multiPanel>button:hover,#menu #lobbyActions button:hover{
+ color:#fff;filter:brightness(1.35) drop-shadow(0 0 8px rgba(255,55,65,.55));transform:scale(1.06)
+}
+#menu .actions#playActions button:focus,#menu .actions#roleActions button:focus,
+#menu #multiPanel button:focus,#menu #lobbyActions button:focus,
+#menu .actions#playActions button:active,#menu .actions#roleActions button:active{
+ outline:none!important;box-shadow:none!important
+}
+#menu .actions#playActions button::-moz-focus-inner,#menu .actions#roleActions button::-moz-focus-inner{border:0}
+#menu #multiPanel{width:min(760px,94vw);margin:0 auto;text-align:center}
+#menu #multiPanel .field{max-width:360px;margin:8px auto}
+#menu #multiPanel .actions{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin:8px 0}
+@media(max-width:600px){
+ #menu .actions#playActions,#menu .actions#roleActions{gap:8px}
+ #menu .actions#playActions button,#menu .actions#roleActions button,#menu #multiPanel>button{font-size:clamp(18px,5vw,25px);padding:8px}
+}
 .eyebrow{font-size:11px;letter-spacing:.2em;color:#c2a3a3}.title{position:fixed;top:7%;left:50%;transform:translateX(-50%);font-family:"Creepster","Chiller","Old English Text MT",Impact,fantasy;font-size:clamp(44px,8vw,78px);line-height:1;margin:0;text-align:center;color:#e7dede;-webkit-text-stroke:.5px #39070b;text-shadow:0 3px 12px #000,0 0 8px #72121a;white-space:nowrap}.title .cyan{color:#b72d38}.desc{color:#c0b8b8;line-height:1.55}.actions{display:grid;grid-template-columns:1fr;gap:18px;margin-top:25px}button{background:transparent;color:#e8dede;border:0;padding:8px 0;text-align:left;font-family:"Creepster","Chiller","Old English Text MT",Impact,fantasy;font-size:clamp(20px,2.6vw,28px);font-weight:900;letter-spacing:.1em;-webkit-text-stroke:.35px #3b080d;text-shadow:0 2px 2px #000,0 0 5px #6b1018,1px 1px 0 #230407;cursor:pointer}button:hover{color:#d44b55;transform:translateX(5px)}button.alt{background:transparent;color:#e8dede;border:0}button:focus{outline:1px dashed #c34a55}.note{font-size:12px;color:#b8aaaa;margin-top:18px}.field{display:block;width:100%;margin:8px 0;padding:12px;background:#080b0ddd;border:1px solid #8b7474;color:#fff;font-size:16px}.lobbyList{color:#eee;line-height:1.8;margin:12px 0;padding:10px;background:#050709aa}.status{color:#d7b9b9;font-size:13px;min-height:20px}.actions button:disabled{opacity:.35;cursor:default}@media(max-width:600px){#menu .card{bottom:2%;padding:0 2vw}#menu .actions#mainActions{gap:2vw}#menu .actions#mainActions button{flex-basis:24%;height:clamp(42px,10vh,76px)}}.hidden{display:none!important}.touch{display:none;position:fixed;bottom:18px;left:14px;right:14px;justify-content:space-between;align-items:end;pointer-events:none}.stick{display:grid;grid-template-columns:repeat(3,43px);gap:4px;pointer-events:auto}.stick button,.touchright button{background:#12232bcc;color:white;border:1px solid #70eee088;padding:10px 0;touch-action:none}.stick .blank{visibility:hidden}.touchright{display:grid;gap:6px;pointer-events:auto}.touchright button{padding:12px 10px;font-size:11px}@media(pointer:coarse){.touch{display:flex}.bottom{bottom:165px}.cross{opacity:.35}}@media(max-width:500px){.box{font-size:10px;padding:7px}.actions{grid-template-columns:1fr}.touchright button{font-size:9px;padding:10px 6px}}
 </style></head><body>
 <canvas id="view" width="480" height="270"></canvas>
