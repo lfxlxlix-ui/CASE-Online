@@ -13,7 +13,9 @@ button:hover,label:hover{background:#3a2028}input{width:100%;margin:8px 0 16px}
 .note{font-size:13px;line-height:1.5;color:#aaa;margin-top:14px}
 @media(max-width:760px){main{grid-template-columns:1fr}aside{border-left:0;border-top:1px solid #30252b}#stage,canvas{min-height:380px}}
 </style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head><body>
 <header><h1>CASE: Online — просмотр аниматроников</h1><p>Загрузи свои GLB-файлы, чтобы осмотреть модели и проверить анимации.</p></header>
 <main><section id="stage"></section><aside>
@@ -22,10 +24,8 @@ button:hover,label:hover{background:#3a2028}input{width:100%;margin:8px 0 16px}
 <div id="files"></div><div id="clips"></div><div id="info">Сначала выбери GLB-файлы с компьютера.</div>
 <p class="note">Управление: зажми левую кнопку мыши и двигай мышь, чтобы вращать модель; колёсико — приблизить/отдалить. Если анимации есть, появятся кнопки ниже.</p>
 </aside></main>
-<script type="module">
-import * as THREE from 'three';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+<script>
+
 const stage=document.querySelector('#stage'),filesBox=document.querySelector('#files'),clipsBox=document.querySelector('#clips'),info=document.querySelector('#info');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x09090c);
 const camera=new THREE.PerspectiveCamera(45,1,.01,1000);camera.position.set(3,2,4);
@@ -37,7 +37,7 @@ const rim=new THREE.DirectionalLight(0xb72d3d,1.8);rim.position.set(-4,3,-4);sce
 scene.add(new THREE.GridHelper(10,20,0x61313a,0x28232a));
 let current=null,mixer=null;const clock=new THREE.Clock();const loaded=[];
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h)}
-new ResizeObserver(resize).observe(stage);resize();
+if(window.ResizeObserver){new ResizeObserver(resize).observe(stage)}else{window.addEventListener("resize",resize)}resize();
 function animate(){requestAnimationFrame(animate);const dt=clock.getDelta();if(mixer)mixer.update(dt);controls.update();renderer.render(scene,camera)}animate();
 function show(item){if(current)scene.remove(current);current=item.gltf.scene;scene.add(current);mixer=null;clipsBox.innerHTML='';
 const box=new THREE.Box3().setFromObject(current),dims=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
