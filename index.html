@@ -104,7 +104,18 @@ function loop(now){
  $('clock').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
  render();requestAnimationFrame(loop)
 }
-window.addEventListener('keydown',e=>{let k=e.key.toLowerCase();keys[k]=true;if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();if(k==='f'&&running){if(role==='animatronic')night=!night;else if(battery>0)flash=!flash}if(k==='e'&&running&&networkGame&&role==='animatronic')tryTagNearest();if(k==='escape'&&running){running=false;$('hud').classList.add('hidden');$('menu').classList.remove('hidden')}});window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function controlKey(e){
+ const codeMap={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',ArrowUp:'arrowup',ArrowDown:'arrowdown',ArrowLeft:'arrowleft',ArrowRight:'arrowright',KeyF:'f',KeyE:'e',Escape:'escape'};
+ return codeMap[e.code]||String(e.key||'').toLowerCase();
+}
+window.addEventListener('keydown',e=>{
+ const k=controlKey(e);keys[k]=true;
+ if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
+ if(k==='f'&&running){if(role==='animatronic')night=!night;else if(battery>0)flash=!flash}
+ if(k==='e'&&running&&networkGame&&role==='animatronic')tryTagNearest();
+ if(k==='escape'&&running){running=false;$('hud').classList.add('hidden');$('menu').classList.remove('hidden')}
+});
+window.addEventListener('keyup',e=>{keys[controlKey(e)]=false});
 canvas.addEventListener('click',()=>{if(running&&document.pointerLockElement!==canvas&&matchMedia('(pointer:fine)').matches)canvas.requestPointerLock?.()});
 document.addEventListener('mousemove',e=>{if(running&&document.pointerLockElement===canvas)angle+=e.movementX*.0035});
 let touchX=null;canvas.addEventListener('touchstart',e=>{if(e.touches.length){touchX=e.touches[0].clientX}},{passive:true});canvas.addEventListener('touchmove',e=>{if(touchX!==null&&e.touches.length){let nx=e.touches[0].clientX;angle+=(nx-touchX)*.009;touchX=nx}},{passive:true});canvas.addEventListener('touchend',()=>touchX=null);
