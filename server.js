@@ -99,14 +99,15 @@ io.on("connection", socket => {
     if (room.players.size < 1) return callback({ ok: false, error: "Нет игроков." });
     room.status = "playing";
     room.startedAt = Date.now();
-    let index = 0;
-    for (const p of room.players.values()) {
-      p.role = room.players.size > 1 && p.id === room.hostId ? "animatronic" : "survivor";
+    // Randomly select exactly one animatronic when there are at least two players.
+    const players = [...room.players.values()];
+    const animatronicIndex = players.length > 1 ? crypto.randomInt(players.length) : -1;
+    players.forEach((p, index) => {
+      p.role = index === animatronicIndex ? "animatronic" : "survivor";
       p.x = p.role === "animatronic" ? 12.5 : 2.5 + index * 0.35;
       p.y = p.role === "animatronic" ? 8.5 : 1.5;
       p.angle = p.role === "animatronic" ? Math.PI : 0;
-      index++;
-    }
+    });
     io.to(room.code).emit("game:started", publicRoom(room));
     io.to(room.code).emit("room:update", publicRoom(room));
     callback({ ok: true });
