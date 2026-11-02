@@ -26,7 +26,7 @@ function publicRoom(room) {
     status: room.status,
     maxPlayers: room.maxPlayers,
     players: [...room.players.values()].map(p => ({
-      id: p.id, name: p.name, ready: p.ready, role: p.role || "survivor", x: p.x, y: p.y, angle: p.angle || 0
+      id: p.id, name: p.name, ready: p.ready, role: p.role || "survivor", survivorClass: p.survivorClass || "aimer", animatronicChoice: p.animatronicChoice || "owl", selectedRole: p.selectedRole || "survivor", x: p.x, y: p.y, angle: p.angle || 0
     }))
   };
 }
@@ -59,7 +59,7 @@ io.on("connection", socket => {
       players: new Map()
     };
     const name = String(payload.name || "Игрок").trim().slice(0, 18) || "Игрок";
-    room.players.set(socket.id, { id: socket.id, name, ready: false, role: "survivor", x: 2.5, y: 1.5, angle: 0 });
+    room.players.set(socket.id, { id: socket.id, name, ready: false, role: "survivor", selectedRole: "survivor", survivorClass: "aimer", animatronicChoice: "owl", x: 2.5, y: 1.5, angle: 0 });
     rooms.set(code, room);
     socketRooms.set(socket.id, code);
     socket.join(code);
@@ -75,12 +75,35 @@ io.on("connection", socket => {
     if (room.players.size >= room.maxPlayers) return callback({ ok: false, error: "Комната заполнена." });
     leaveRoom(socket);
     const name = String(payload.name || "Игрок").trim().slice(0, 18) || "Игрок";
-    room.players.set(socket.id, { id: socket.id, name, ready: false, role: "survivor", x: 2.5 + room.players.size * 0.35, y: 1.5, angle: 0 });
+    room.players.set(socket.id, { id: socket.id, name, ready: false, role: "survivor", selectedRole: "survivor", survivorClass: "aimer", animatronicChoice: "owl", x: 2.5 + room.players.size * 0.35, y: 1.5, angle: 0 });
     socketRooms.set(socket.id, code);
     socket.join(code);
     callback({ ok: true, room: publicRoom(room), host: room.hostId === socket.id });
     io.to(code).emit("room:update", publicRoom(room));
     io.to(code).emit("game:notice", name + " подключился.");
+  });
+
+  socket.on("player:loadout", (payload = {}, callback = () => {}) => {
+    const room = rooms.get(socketRooms.get(socket.id));
+    if (!room || room.status !== "lobby") return callback({ ok: false, error: "Выбирать персонажа можно только в лобби." });
+    const player = room.players.get(socket.id);
+    if (!player) return callback({ ok: false, error: "Игрок не найден." });
+    const survivorClasses = ["aimer", "medic", "support"];
+    const animatronics = ["owl", "cat"];
+    if (payload.selectedRole !== undefined) {
+      if (!["survivor", "animatronic"].includes(payload.selectedRole)) return callback({ ok: false, error: "Неизвестная роль." });
+      player.selectedRole = payload.selectedRole;
+    }
+    if (payload.survivorClass !== undefined) {
+      if (!survivorClasses.includes(payload.survivorClass)) return callback({ ok: false, error: "Неизвестный класс выжившего." });
+      player.survivorClass = payload.survivorClass;
+    }
+    if (payload.animatronicChoice !== undefined) {
+      if (!animatronics.includes(payload.animatronicChoice)) return callback({ ok: false, error: "Неизвестный аниматроник." });
+      player.animatronicChoice = payload.animatronicChoice;
+    }
+    io.to(room.code).emit("room:update", publicRoom(room));
+    callback({ ok: true, room: publicRoom(room) });
   });
 
   socket.on("player:ready", (value, callback = () => {}) => {
@@ -97,13 +120,16 @@ io.on("connection", socket => {
     if (!room) return callback({ ok: false, error: "Сначала войди в комнату." });
     if (room.hostId !== socket.id) return callback({ ok: false, error: "Начать матч может создатель комнаты." });
     if (room.players.size < 2) return callback({ ok: false, error: "Для сетевого матча нужны минимум 2 игрока. Пригласи друга и дождись его подключения." });
+    if (![...room.players.values()].some(p => p.selectedRole === "survivor") || ![...room.players.values()].some(p => p.selectedRole === "animatronic")) return callback({ ok: false, error: "В лобби нужен хотя бы один игрок, выбравший выжившего, и один — аниматроника." });
     room.status = "playing";
     room.startedAt = Date.now();
     // Randomly select exactly one animatronic when there are at least two players.
     const players = [...room.players.values()];
-    const animatronicIndex = players.length > 1 ? crypto.randomInt(players.length) : -1;
+    const eligible = players.map((p, index) => ({ p, index })).filter(item => item.p.selectedRole === "animatronic");
+    const animatronicIndex = eligible.length ? eligible[crypto.randomInt(eligible.length)].index : -1;
     players.forEach((p, index) => {
       p.role = index === animatronicIndex ? "animatronic" : "survivor";
+      p.character = p.role === "animatronic" ? p.animatronicChoice : p.survivorClass;
       p.x = p.role === "animatronic" ? 12.5 : 2.5 + index * 0.35;
       p.y = p.role === "animatronic" ? 8.5 : 1.5;
       p.angle = p.role === "animatronic" ? Math.PI : 0;
