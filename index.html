@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CASE: Online — Night Shift</title>
+<style>
+:root{--bg:#070b10;--panel:#101923;--line:#243544;--cyan:#68e0db;--red:#ff4d61;--text:#e9f2f6;--muted:#91a5b1}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 0%,#172633 0,#070b10 65%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh;display:grid;place-items:center;padding:20px}
+.shell{width:min(1100px,100%);border:1px solid #2a3a47;background:#0b1118;box-shadow:0 25px 90px #0009;position:relative;overflow:hidden}
+.top{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--line);background:#0d151e}
+.brand{font-weight:900;letter-spacing:.16em}.brand span{color:var(--cyan)}.status{font-size:11px;letter-spacing:.13em;color:var(--muted)}.status i{display:inline-block;width:7px;height:7px;background:var(--red);border-radius:50%;margin-right:8px;box-shadow:0 0 12px var(--red)}
+.game{position:relative;background:#05090d;aspect-ratio:16/9;min-height:330px}.game canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:18px}
+.hudrow{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.chip{background:#071019d9;border:1px solid #30404b;padding:8px 12px;font-size:12px;letter-spacing:.08em}.chip b{color:var(--cyan)}.objective{max-width:290px}
+.bottomhint{align-self:center;background:#071019dc;border:1px solid #30404b;padding:8px 15px;color:#c5d2d9;font-size:12px}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(90deg,#05090dec,#08131be8);padding:24px}
+.card{width:min(510px,100%);border:1px solid #344956;background:#0b131ceF;padding:clamp(22px,4vw,42px);box-shadow:0 20px 70px #0009}
+.eyebrow{font-size:11px;letter-spacing:.24em;color:var(--cyan);font-weight:800}.title{font-size:clamp(32px,6vw,58px);line-height:.98;letter-spacing:-.05em;margin:12px 0}.title span{color:var(--cyan)}.desc{color:#a7b8c2;max-width:390px;margin:17px 0 24px}
+button{border:0;background:var(--cyan);color:#061014;padding:13px 18px;font:800 12px system-ui;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;width:100%;transition:filter .15s,transform .15s}button:hover{filter:brightness(1.13);transform:translateY(-1px)}button.secondary{margin-top:9px;background:transparent;border:1px solid #425563;color:#d4e0e5}
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:22px;color:#8da1ad;font-size:11px}.controls div{border-top:1px solid #273844;padding-top:8px}.controls b{display:block;color:#e3edf1;font-size:12px;margin-bottom:3px}
+.footer{padding:10px 18px;color:#718794;font-size:11px;display:flex;justify-content:space-between;border-top:1px solid var(--line);gap:12px;flex-wrap:wrap}
+.hidden{display:none!important}.warning{color:#ff8793;font-size:12px;margin-top:12px}
+@media(max-width:600px){body{padding:0}.shell{border-left:0;border-right:0}.game{aspect-ratio:4/3;min-height:360px}.hud{padding:9px}.chip{padding:6px 8px;font-size:10px}.objective{max-width:180px}.controls{grid-template-columns:1fr 1fr}.footer{font-size:10px}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="top"><div class="brand">CASE<span>:</span> ONLINE</div><div class="status"><i></i> NIGHT SHIFT // BUILD 0.1.0</div></header>
+<section class="game" id="game">
+<canvas id="screen" width="960" height="540" aria-label="Игровая сцена"></canvas>
+<div class="hud hidden" id="hud">
+ <div class="hudrow"><div class="chip">POWER <b id="power">100%</b></div><div class="chip objective">TASK // <b id="task">Найди предохранители: 0/3</b></div></div>
+ <div class="hudrow"><div class="chip">THREAT <b id="threat">UNKNOWN</b></div><div class="chip">SHIFT <b id="timer">00:00</b></div></div>
+ <div class="bottomhint" id="hint">WASD — движение · E — взаимодействие · F — фонарь</div>
+</div>
+<div class="overlay" id="menu"><div class="card">
+<div class="eyebrow">MULTIPLAYER HORROR // PROTOTYPE</div><h1 class="title">NIGHT<br><span>SHIFT</span></h1>
+<p class="desc">Ты остался один в закрытом исследовательском комплексе. Найди три предохранителя, восстанови питание и доберись до выхода. Что-то уже движется в темноте.</p>
+<button id="start">Начать смену</button><button class="secondary" id="how">Как играть</button>
+<div class="controls"><div><b>W A S D</b>Движение</div><div><b>E</b>Поднять предмет</div><div><b>F</b>Фонарь</div></div><p class="warning">Прототип 0.1 — одиночная тестовая сборка. Сетевая игра будет добавлена отдельно.</p>
+</div></div>
+<div class="overlay hidden" id="end"><div class="card"><div class="eyebrow" id="endtag">SHIFT COMPLETE</div><h2 class="title" id="endtitle">Ты выбрался.</h2><p class="desc" id="enddesc">На сегодня хватит.</p><button id="again">Играть снова</button></div></div>
+</section>
+<footer class="footer"><span>ORIGINAL FAN-MADE HORROR PROJECT</span><span>WIP · WASD / E / F</span></footer>
+</main>
+<script>
+(()=> {
+const canvas=document.getElementById('screen'),ctx=canvas.getContext('2d');
+const W=960,H=540,T=30,COLS=32,ROWS=18;
+const walls=new Set();
+function wall(x,y){walls.add(y*COLS+x)}
+// Hand-built facility layout: corridors, rooms, and a central security wing.
+for(let x=0;x<COLS;x++){wall(x,0);wall(x,ROWS-1)}
+for(let y=0;y<ROWS;y++){wall(0,y);wall(COLS-1,y)}
+for(let x=3;x<13;x++)wall(x,5); for(let x=3;x<13;x++)wall(x,11);
+for(let y=5;y<=11;y++){wall(3,y);wall(12,y)}
+for(let x=18;x<28;x++)wall(x,5);for(let x=18;x<28;x++)wall(x,11);
+for(let y=5;y<=11;y++){wall(18,y);wall(27,y)}
+for(let y=2;y<6;y++)wall(15,y);for(let y=12;y<16;y++)wall(15,y);
+for(let x=7;x<11;x++)wall(x,14);for(let x=21;x<25;x++)wall(x,14);
+[[7,5],[8,5],[10,11],[11,11],[18,8],[18,9],[15,5],[15,12],[7,14],[8,14],[21,14],[22,14]].forEach(([x,y])=>walls.delete(y*COLS+x));
+const player={x:5.5*T,y:8.5*T,r:9,speed:150,flash:true};
+let monster={x:24*T,y:8*T,r:12,speed:64,awake:false};
+let fuses=[],collected=0,running=false,dead=false,won=false,elapsed=0,last=0,keys={},noise=0,flashBattery=100,lightOn=true;
+const $=id=>document.getElementById(id);
+function reset(){player.x=5.5*T;player.y=8.5*T;monster.x=24*T;monster.y=8*T;monster.awake=false;fuses=[{x:8.5*T,y:8*T,got:false},{x:22*T,y:3*T,got:false},{x:24*T,y:9*T,got:false}];collected=0;elapsed=0;flashBattery=100;lightOn=true;noise=0;dead=false;won=false;running=true;$('menu').classList.add('hidden');$('end').classList.add('hidden');$('hud').classList.remove('hidden');last=performance.now();requestAnimationFrame(loop)}
+function blocked(x,y,r){const minX=Math.floor((x-r)/T),maxX=Math.floor((x+r)/T),minY=Math.floor((y-r)/T),maxY=Math.floor((y+r)/T);for(let ty=minY;ty<=maxY;ty++)for(let tx=minX;tx<=maxX;tx++){if(walls.has(ty*COLS+tx)&&x+r>tx*T&&x-r<(tx+1)*T&&y+r>ty*T&&y-r<(ty+1)*T)return true}return false}
+function move(obj,dx,dy){if(!blocked(obj.x+dx,obj.y,obj.r))obj.x+=dx;if(!blocked(obj.x,obj.y+dy,obj.r))obj.y+=dy}
+function draw(){ctx.fillStyle='#080e13';ctx.fillRect(0,0,W,H);
+// subtle floor grid
+for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const px=x*T,py=y*T;ctx.fillStyle=((x+y)%2)?'#101a20':'#0e171d';ctx.fillRect(px,py,T,T);if(walls.has(y*COLS+x)){ctx.fillStyle='#263641';ctx.fillRect(px+1,py+1,T-2,T-2);ctx.fillStyle='#344753';ctx.fillRect(px+2,py+2,T-4,4);ctx.fillStyle='#17242d';ctx.fillRect(px+3,py+8,T-6,T-10)}}
+ctx.strokeStyle='#25343d';ctx.lineWidth=2;ctx.strokeRect(1,1,W-2,H-2);
+// exit
+ctx.fillStyle=collected===3?'#1e9d8e':'#45232b';ctx.fillRect(28*T,8*T, T,2*T);ctx.fillStyle=collected===3?'#7bfff0':'#ff7381';ctx.fillRect(28*T+4,8*T+8,4,36);ctx.fillStyle='#a5b7c1';ctx.font='10px monospace';ctx.fillText('EXIT',28*T+2,8*T-6);
+// fuses
+for(const f of fuses)if(!f.got){ctx.save();ctx.translate(f.x,f.y);ctx.rotate(Math.sin(elapsed*3)*.08);ctx.fillStyle='#e3bd61';ctx.fillRect(-6,-9,12,18);ctx.fillStyle='#fff0ad';ctx.fillRect(-3,-6,6,12);ctx.restore();ctx.fillStyle='#f6d57b';ctx.beginPath();ctx.arc(f.x,f.y,13+Math.sin(elapsed*4)*2,0,Math.PI*2);ctx.strokeStyle='#f6d57b55';ctx.stroke()}
+// player
+ctx.save();ctx.translate(player.x,player.y);ctx.fillStyle='#7adbd5';ctx.beginPath();ctx.arc(0,0,player.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#e9ffff';ctx.beginPath();ctx.arc(3,-2,3,0,Math.PI*2);ctx.fill();ctx.restore();
+// monster
+const d=Math.hypot(monster.x-player.x,monster.y-player.y);if(monster.awake||d<210){ctx.save();ctx.translate(monster.x,monster.y);ctx.fillStyle='#7d1d2b';ctx.beginPath();ctx.arc(0,0,monster.r+2,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff5367';ctx.fillRect(-6,-3,4,3);ctx.fillRect(3,-3,4,3);ctx.restore()}
+// flashlight vignette
+const radius=lightOn?195:80;const grd=ctx.createRadialGradient(player.x,player.y,20,player.x,player.y,radius);grd.addColorStop(0,'#00000000');grd.addColorStop(.65,'#03070a22');grd.addColorStop(1,'#020508f2');ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
+if(!lightOn){ctx.fillStyle='#03060966';ctx.fillRect(0,0,W,H)}
+// close danger red pulse
+if(d<130){ctx.fillStyle='rgba(180,20,40,'+((130-d)/130*.16)+')';ctx.fillRect(0,0,W,H)}
+}
+function finish(success){running=false;dead=!success;won=success;$('endtag').textContent=success?'SHIFT COMPLETE':'SIGNAL LOST';$('endtitle').textContent=success?'Ты выбрался.':'Тебя нашли.';$('enddesc').textContent=success?'Питание восстановлено. Но камеры всё ещё работают…':'Комплекс поглотил ещё одного ночного сотрудника. Попробуй снова.';$('end').classList.remove('hidden')}
+function loop(now){if(!running)return;const dt=Math.min((now-last)/1000,.04);last=now;elapsed+=dt;
+let dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);if(dx&&dy){dx*=.707;dy*=.707}move(player,dx*player.speed*dt,dy*player.speed*dt);
+if(lightOn){flashBattery=Math.max(0,flashBattery-dt*1.1);if(flashBattery===0)lightOn=false}
+const distance=Math.hypot(monster.x-player.x,monster.y-player.y);
+if(elapsed>9||noise>0)monster.awake=true;
+if(monster.awake){const speed=monster.speed+(distance<150?25:0);const mx=(player.x-monster.x)/(distance||1),my=(player.y-monster.y)/(distance||1);move(monster,mx*speed*dt,my*speed*dt)}
+if(distance<player.r+monster.r+2){finish(false);return}
+for(const f of fuses)if(!f.got&&Math.hypot(f.x-player.x,f.y-player.y)<24&&keys.e){f.got=true;collected++;keys.e=false;noise=3}
+if(collected===3&&player.x>28*T&&player.y>8*T&&player.y<10*T){finish(true);return}
+noise=Math.max(0,noise-dt);
+$('power').textContent=Math.round(flashBattery)+'%';$('task').textContent='Найди предохранители: '+collected+'/3';$('threat').textContent=distance<160?'NEARBY':monster.awake?'ACTIVE':'UNKNOWN';$('threat').style.color=distance<160?'#ff5367':'#68e0db';$('timer').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');$('hint').textContent=collected===3?'Питание восстановлено — доберись до EXIT': 'WASD — движение · E — подобрать предохранитель · F — фонарь';
+draw();requestAnimationFrame(loop)}
+window.addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();keys[k]=true;if(k==='f'&&running&&flashBattery>0)lightOn=!lightOn});
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+$('start').addEventListener('click',reset);$('again').addEventListener('click',reset);$('how').addEventListener('click',()=>alert('WASD — ходить. Подойди к золотому предохранителю и нажми E. Найди все три, затем иди к EXIT справа. F включает и выключает фонарь. Не подпускай существо близко!'));
+draw();
+})();
+</script>
+</body></html>
