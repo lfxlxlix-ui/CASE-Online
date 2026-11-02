@@ -26,7 +26,7 @@ function publicRoom(room) {
     status: room.status,
     maxPlayers: room.maxPlayers,
     players: [...room.players.values()].map(p => ({
-      id: p.id, name: p.name, ready: p.ready, x: p.x, y: p.y
+      id: p.id, name: p.name, ready: p.ready, role: p.role || "survivor", x: p.x, y: p.y, angle: p.angle || 0
     }))
   };
 }
@@ -59,7 +59,7 @@ io.on("connection", socket => {
       players: new Map()
     };
     const name = String(payload.name || "Игрок").trim().slice(0, 18) || "Игрок";
-    room.players.set(socket.id, { id: socket.id, name, ready: false, x: 150, y: 150 });
+    room.players.set(socket.id, { id: socket.id, name, ready: false, role: "survivor", x: 2.5, y: 1.5, angle: 0 });
     rooms.set(code, room);
     socketRooms.set(socket.id, code);
     socket.join(code);
@@ -75,7 +75,7 @@ io.on("connection", socket => {
     if (room.players.size >= room.maxPlayers) return callback({ ok: false, error: "Комната заполнена." });
     leaveRoom(socket);
     const name = String(payload.name || "Игрок").trim().slice(0, 18) || "Игрок";
-    room.players.set(socket.id, { id: socket.id, name, ready: false, x: 180, y: 150 });
+    room.players.set(socket.id, { id: socket.id, name, ready: false, role: "survivor", x: 2.5 + room.players.size * 0.35, y: 1.5, angle: 0 });
     socketRooms.set(socket.id, code);
     socket.join(code);
     callback({ ok: true, room: publicRoom(room), host: room.hostId === socket.id });
@@ -99,7 +99,14 @@ io.on("connection", socket => {
     if (room.players.size < 1) return callback({ ok: false, error: "Нет игроков." });
     room.status = "playing";
     room.startedAt = Date.now();
-    for (const p of room.players.values()) { p.x = 150; p.y = 150; }
+    let index = 0;
+    for (const p of room.players.values()) {
+      p.role = room.players.size > 1 && p.id === room.hostId ? "animatronic" : "survivor";
+      p.x = p.role === "animatronic" ? 12.5 : 2.5 + index * 0.35;
+      p.y = p.role === "animatronic" ? 8.5 : 1.5;
+      p.angle = p.role === "animatronic" ? Math.PI : 0;
+      index++;
+    }
     io.to(room.code).emit("game:started", publicRoom(room));
     io.to(room.code).emit("room:update", publicRoom(room));
     callback({ ok: true });
@@ -110,14 +117,17 @@ io.on("connection", socket => {
     if (!room || room.status !== "playing") return;
     const player = room.players.get(socket.id);
     if (!player) return;
-    const x = Number(payload.x), y = Number(payload.y);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const x = Number(payload.x), y = Number(payload.y), angle = Number(payload.angle);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(angle)) return;
     // Basic bounds and speed sanity check; the full collision map will be server-authoritative later.
-    const nx = Math.max(20, Math.min(940, x));
-    const ny = Math.max(20, Math.min(520, y));
-    if (Math.hypot(nx - player.x, ny - player.y) > 65) return;
-    player.x = nx; player.y = ny;
-    socket.to(room.code).emit("player:moved", { id: socket.id, x: player.x, y: player.y });
+    const nx = Math.max(1.2, Math.min(14.8, x));
+    const ny = Math.max(1.2, Math.min(9.8, y));
+    if (Math.hypot(nx - player.x, ny - player.y) > 1.1) return;
+    player.x = nx; player.y = ny; player.angle = angle;
+    socket.to(room.code).emit("player:moved", {
+      id: socket.id, name: player.name, role: player.role,
+      x: player.x, y: player.y, angle: player.angle
+    });
   });
 
   socket.on("room:leave", () => leaveRoom(socket));
