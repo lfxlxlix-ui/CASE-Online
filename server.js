@@ -130,6 +130,21 @@ io.on("connection", socket => {
     });
   });
 
+  socket.on("player:tag", (payload = {}) => {
+    const room = rooms.get(socketRooms.get(socket.id));
+    if (!room || room.status !== "playing") return;
+    const attacker = room.players.get(socket.id);
+    if (!attacker || attacker.role !== "animatronic") return;
+    const target = room.players.get(String(payload.targetId || ""));
+    if (!target || target.role !== "survivor") return;
+    if (Math.hypot(attacker.x - target.x, attacker.y - target.y) > 1.15) return;
+    room.status = "finished";
+    io.to(room.code).emit("game:ended", {
+      winner: "animatronic",
+      message: target.name + " был пойман аниматроником."
+    });
+  });
+
   socket.on("room:leave", () => leaveRoom(socket));
   socket.on("disconnect", () => leaveRoom(socket));
 });
