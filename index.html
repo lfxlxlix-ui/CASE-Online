@@ -157,7 +157,16 @@ render();
 (function(){
   var overlay = document.getElementById('case-online-maintenance-overlay');
   if (!overlay) return;
-  function checkMaintenance(){
+  var serverHasState = false;
+  var serverUrl = 'https://case-online.onrender.com';
+  function show(active, message){
+    overlay.style.display = active ? 'flex' : 'none';
+    var p = overlay.querySelector('p');
+    if (p && message) p.textContent = message;
+    document.documentElement.style.overflow = active ? 'hidden' : '';
+  }
+  function checkScheduledMaintenance(){
+    if (serverHasState) return;
     try {
       var parts = new Intl.DateTimeFormat('en-GB', {
         timeZone:'Europe/Moscow', hour:'2-digit', minute:'2-digit',
@@ -165,16 +174,13 @@ render();
       }).formatToParts(new Date());
       var hour = Number(parts.find(function(p){return p.type==='hour';}).value);
       var minute = Number(parts.find(function(p){return p.type==='minute';}).value);
-      var active = hour === 0 && minute < 5;
-      overlay.style.display = active ? 'flex' : 'none';
-      document.documentElement.style.overflow = active ? 'hidden' : '';
-    } catch (e) { overlay.style.display = 'none'; }
+      show(hour === 0 && minute < 5,
+        'Идёт плановое техническое обслуживание. Подожди несколько минут — игра скоро снова станет доступна.');
+    } catch (e) { /* Keep the current display if timezone formatting fails. */ }
   }
   window.caseOnlineSetMaintenance = function(active, message){
-    overlay.style.display = active ? 'flex' : 'none';
-    var p = overlay.querySelector('p');
-    if (p && message) p.textContent = message;
-    document.documentElement.style.overflow = active ? 'hidden' : '';
+    serverHasState = true;
+    show(Boolean(active), message);
   };
   window.addEventListener('message', function(event){
     var data = event.data;
@@ -182,8 +188,24 @@ render();
       window.caseOnlineSetMaintenance(Boolean(data.active), data.message);
     }
   });
-  checkMaintenance();
-  window.setInterval(checkMaintenance, 15000);
+  function applyServerState(data){
+    if (!data || typeof data.active !== 'boolean') return;
+    serverHasState = true;
+    show(data.active, data.message || 'Идёт плановое техническое обслуживание. Подожди несколько минут — игра скоро снова станет доступна.');
+  }
+  fetch(serverUrl + '/api/maintenance')
+    .then(function(response){ if (!response.ok) throw new Error('HTTP ' + response.status); return response.json(); })
+    .then(applyServerState)
+    .catch(function(){ checkScheduledMaintenance(); });
+  if (typeof EventSource !== 'undefined') {
+    var events = new EventSource(serverUrl + '/api/maintenance/events');
+    events.onmessage = function(event){
+      try { applyServerState(JSON.parse(event.data)); } catch (e) {}
+    };
+    events.onerror = function(){ /* EventSource retries automatically. */ };
+  }
+  checkScheduledMaintenance();
+  window.setInterval(checkScheduledMaintenance, 15000);
 })();
 </script>
 <!-- /CASE: Online — окно планового перезапуска -->
