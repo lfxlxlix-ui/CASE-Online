@@ -291,11 +291,11 @@ const io = new Server(server, {
 });
 const rooms = new Map();
 const soloSessions = new Map();
-function cleanSoloSessions() { const cutoff = Date.now() - 12000; for (const [id, session] of soloSessions) if (session.updatedAt < cutoff) soloSessions.delete(id); }
+function cleanSoloSessions() { const cutoff = Date.now() - 30000; for (const [id, session] of soloSessions) if (session.updatedAt < cutoff) soloSessions.delete(id); }
 function matchOverview() {
   cleanSoloSessions();
   const solo = [...soloSessions.values()].map(s => ({...s, mode: "solo"}));
-  const multi = [...rooms.values()].filter(r => r.status === "playing").map(r => ({code:r.code, mode:"multiplayer", status:r.status, updatedAt:Date.now(), map:r.map || null, objects:r.objects || [], elapsed:r.elapsed || 0, players:[...r.players.values()].map(p=>({id:p.id,name:p.name,role:p.role,x:p.x,y:p.y,angle:p.angle}))}));
+  const multi = [...rooms.values()].map(r => ({code:r.code, mode:"multiplayer", status:r.status, updatedAt:Date.now(), map:r.map || null, objects:r.objects || [], elapsed:r.elapsed || 0, players:[...r.players.values()].map(p=>({id:p.id,name:p.name,role:p.role,x:p.x,y:p.y,angle:p.angle}))}));
   return [...solo, ...multi];
 }
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
