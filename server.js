@@ -119,7 +119,7 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 <button class="start" id="enable" type="button">Включить обслуживание</button>
 <button class="stop" id="disable" type="button">Выключить обслуживание</button>
 </div>
-<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Просмотр матчей</h2><p>Активные одиночные сессии и сетевые матчи. Обновляется каждые 2 секунды.</p><div id="matches"><p>Загрузка матчей…</p></div><h2>Игра: игрок против ИИ</h2><p>Запускает игровую сцену CASE Online: ты управляешь игроком, а ИИ действует по логике самой игры.</p><button id="runSimulations" type="button" style="width:100%;background:#7c9cff;color:#101626">▶ Играть против ИИ</button><div id="simSummary" aria-live="polite"></div><div id="simulations"></div><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
+<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Просмотр матчей</h2><p>Активные одиночные сессии и сетевые матчи. Обновляется каждые 2 секунды.</p><div id="matches"><p>Загрузка матчей…</p></div><h2>Автоматический матч: выживший-ИИ против аниматроника-ИИ</h2><p>Запускает матч без управления человеком: ИИ-выживший собирает предохранители, чинит электрощиты и пытается открыть выход, а ИИ-аниматроник охотится на него.</p><button id="runSimulations" type="button" style="width:100%;background:#7c9cff;color:#101626">▶ Играть против ИИ</button><div id="simSummary" aria-live="polite"></div><div id="simulations"></div><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
 <div id="notice" role="status" aria-live="polite"></div>
 <small>Перезапуск временно отключит API. Текущее состояние обслуживания сбросится после перезапуска. Доступ защищён входом администратора.</small>
 </main>
@@ -132,12 +132,12 @@ document.getElementById("runSimulations").addEventListener("click",()=>{
  const box=document.getElementById("simulations"),summary=document.getElementById("simSummary");
  box.replaceChildren();
  const frame=document.createElement("iframe");
- frame.src="/game?mode=player-vs-ai";
- frame.title="CASE Online — игрок против ИИ";
+ frame.src="/game?mode=ai-vs-ai";
+ frame.title="CASE Online — ИИ-выживший против ИИ-аниматроника";
  frame.allow="fullscreen";
  frame.style.cssText="display:block;width:100%;height:min(78vh,760px);min-height:480px;border:1px solid #454d60;border-radius:12px;background:#05090c";
  box.appendChild(frame);
- summary.textContent="Открыта настоящая игровая сцена. Играй за выжившего против ИИ; управление и условия победы — как в обычной игре.";
+ summary.textContent="Автоматический матч запущен: выживший-ИИ сам выполняет задачи, а аниматроник-ИИ пытается его поймать.";
  frame.scrollIntoView({behavior:"smooth",block:"start"});
 });
 async function loadLogs(){try{const r=await fetch("/admin/logs",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить журнал");const d=await r.json(),box=document.getElementById("eventLogs");box.replaceChildren();if(!d.logs.length){box.textContent="Событий пока нет.";return;}d.logs.slice().reverse().forEach(item=>{const p=document.createElement("p");p.textContent=(item.actor||"System")+" — "+(item.action||item.event||"Событие")+" — "+new Date(item.time).toLocaleString("ru-RU");box.appendChild(p);});}catch(e){document.getElementById("eventLogs").textContent=e.message;}}
