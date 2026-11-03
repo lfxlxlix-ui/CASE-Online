@@ -244,6 +244,23 @@ const server = http.createServer((req, res) => {
     return handleMaintenancePost(req, res, "System");
   }
 
+  if (url.pathname === "/game" || url.pathname === "/game/") {
+    const gamePath = path.join(__dirname, "index.html");
+    fs.readFile(gamePath, (error, html) => {
+      if (error) {
+        console.error("Game page could not be loaded:", error.message);
+        return sendJson(res, 500, { error: "Не удалось загрузить игру." });
+      }
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "X-Content-Type-Options": "nosniff"
+      });
+      res.end(html);
+    });
+    return;
+  }
+
   return sendJson(res, 404, { error: "Not found" });
 });
 
