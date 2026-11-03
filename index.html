@@ -145,7 +145,8 @@ function end(title,text){running=false;$('endTitle').textContent=title;$('endTex
 function loop(now){
  if(!running)return;
  let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;updateInteraction(dt);
- updateSurvivorAI(dt,now);\n let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
+ updateSurvivorAI(dt,now);
+ let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
  let s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
  let speed=role==='animatronic'?1:1.7;
  let dx=(Math.cos(angle)*f-Math.sin(angle)*s)*speed*dt;
