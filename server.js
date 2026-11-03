@@ -339,6 +339,7 @@ io.on("connection", socket => {
     if(typeof ack==="function")ack({ok:true,room:state,host:true});
     emitRoom(room);
   });
+  socket.on("game:mapstate", data => { const room=findRoom(socket); if(!room||room.status!=="playing"||!data)return; if(Array.isArray(data.map)&&data.map.length<=40)room.map=data.map.map(row=>String(row).slice(0,60)); if(Array.isArray(data.objects))room.objects=data.objects.slice(0,30).map(o=>({type:String(o.type||"").slice(0,16),x:Number(o.x)||0,y:Number(o.y)||0,state:String(o.state||"").slice(0,20)})); room.elapsed=Math.max(0,Number(data.elapsed)||0); });
   socket.on("player:move", data => {
     const room=findRoom(socket),p=room?.players.get(socket.id);
     if(!p||room.status!=="playing"||!data)return;
