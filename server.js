@@ -1,8 +1,16 @@
 const http = require("node:http");
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const PORT = Number(process.env.PORT) || 3000;
 const TOKEN = process.env.MAINTENANCE_TOKEN;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const LOG_FILE = path.join(__dirname, "case-online-logs.json");
+const adminSessions = new Set();
+let eventLogs = [];
+try { eventLogs = JSON.parse(fs.readFileSync(LOG_FILE, "utf8")); if (!Array.isArray(eventLogs)) eventLogs = []; } catch { eventLogs = []; }
+function addLog(event) { eventLogs.push({ event, time: new Date().toISOString() }); eventLogs = eventLogs.slice(-200); try { fs.writeFileSync(LOG_FILE, JSON.stringify(eventLogs, null, 2)); } catch (error) { console.error("Log write failed:", error.message); } }
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 
 let maintenance = {
@@ -46,6 +54,11 @@ function adminAuthorized(req) {
   return decoded.slice(0, separator) === "admin" && safeEqual(decoded.slice(separator + 1), TOKEN);
 }
 
+function hasAdminSession(req) {
+  const entry = String(req.headers.cookie || "").split(";").map(x => x.trim()).find(x => x.startsWith("case_admin_session="));
+  return !!entry && adminSessions.has(entry.slice("case_admin_session=".length));
+}
+function requireSecondFactor(req, res) { if (hasAdminSession(req)) return true; sendJson(res, 401, { error: "Дополнительный вход не выполнен." }); return false; }
 function requireAdmin(req, res) {
   if (adminAuthorized(req)) return true;
   res.writeHead(401, {
@@ -74,7 +87,7 @@ const adminHtml = `<!doctype html>
 <style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;background:#10131a;color:#f4f6fb;display:grid;place-items:center;padding:20px}
+#secondGate{width:min(100%,420px);background:#191e29;border:1px solid #343b4b;border-radius:18px;padding:28px}#secondGate input{width:100%;padding:13px;border-radius:9px;border:1px solid #454d60;background:#10131a;color:#fff;font:inherit}#secondGate button{width:100%;margin-top:12px;background:#42d392;color:#062217}body{margin:0;min-height:100vh;background:#10131a;color:#f4f6fb;display:grid;place-items:center;padding:20px}
 main{width:min(100%,520px);background:#191e29;border:1px solid #343b4b;border-radius:20px;padding:clamp(20px,5vw,32px);box-shadow:0 20px 70px #0005}
 .tag{color:#aab5cb;font-size:.85rem;letter-spacing:.08em;text-transform:uppercase}
 h1{font-size:clamp(1.7rem,5vw,2.2rem);margin:.5rem 0}
@@ -94,7 +107,7 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 @media(max-width:380px){.actions{grid-template-columns:1fr}}
 </style>
 </head>
-<body><main>
+<body><section id="secondGate"><div class="tag">Дополнительная защита</div><h1>Повторный вход</h1><p>Введи дополнительный пароль администратора.</p><form id="unlockForm"><input id="adminPassword" type="password" autocomplete="current-password" required><button type="submit">Разблокировать панель</button></form><p id="unlockNotice" role="status"></p></section><main id="adminPanel" hidden>
 <div class="tag">CASE: Online / Control</div>
 <h1>Панель обслуживания</h1>
 <p>Управляй режимом обслуживания. Изменения сразу отправляются всем открытым страницам игры.</p>
@@ -105,12 +118,15 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 <button class="start" id="enable" type="button">Включить обслуживание</button>
 <button class="stop" id="disable" type="button">Выключить обслуживание</button>
 </div>
-<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button>
+<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
 <div id="notice" role="status" aria-live="polite"></div>
 <small>Перезапуск временно отключит API. Текущее состояние обслуживания сбросится после перезапуска. Доступ защищён входом администратора.</small>
 </main>
 <script>
-const statusBox=document.getElementById('status');
+const gate=document.getElementById("secondGate"),panel=document.getElementById("adminPanel");
+document.getElementById("unlockForm").addEventListener("submit",async e=>{e.preventDefault();const note=document.getElementById("unlockNotice");note.textContent="Проверяю…";try{const r=await fetch("/admin/unlock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("adminPassword").value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка входа");gate.hidden=true;panel.hidden=false;refresh();loadLogs();}catch(x){note.textContent=x.message;}});
+async function loadLogs(){try{const r=await fetch("/admin/logs",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить журнал");const d=await r.json(),box=document.getElementById("eventLogs");box.replaceChildren();if(!d.logs.length){box.textContent="Событий пока нет.";return;}d.logs.slice().reverse().forEach(item=>{const p=document.createElement("p");p.textContent=item.event+" — "+new Date(item.time).toLocaleString("ru-RU");box.appendChild(p);});}catch(e){document.getElementById("eventLogs").textContent=e.message;}}
+const statusBox=document.getElementById("status");
 const statusText=document.getElementById('statusText');
 const messageInput=document.getElementById('message');
 const notice=document.getElementById('notice');
@@ -159,7 +175,6 @@ restartButton.addEventListener('click',async()=>{
     notice.textContent='Соединение прервано или перезапуск начался. Подожди немного и обнови страницу.';
   }
 });
-refresh();
 </script>
 </body></html>`;
 
@@ -186,15 +201,18 @@ const server = http.createServer((req, res) => {
     return res.end(adminHtml);
   }
 
+  if (url.pathname === "/admin/unlock" && req.method === "POST") { if (!requireAdmin(req, res)) return; return handleUnlock(req, res); }
+  if (url.pathname === "/admin/logs" && req.method === "GET") { if (!requireAdmin(req, res) || !requireSecondFactor(req, res)) return; return sendJson(res, 200, { logs: eventLogs }); }
   if (url.pathname === "/admin/maintenance" && req.method === "POST") {
-    if (!requireAdmin(req, res)) return;
+    if (!requireAdmin(req, res) || !requireSecondFactor(req, res)) return;
     return handleMaintenancePost(req, res);
   }
 
   if (url.pathname === "/admin/restart" && req.method === "POST") {
-    if (!requireAdmin(req, res)) return;
+    if (!requireAdmin(req, res) || !requireSecondFactor(req, res)) return;
     res.writeHead(202, {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});
     res.end(JSON.stringify({ok:true,message:"Restart requested"}));
+    addLog("Server restart");
     console.warn("Admin requested a service restart.");
     setTimeout(() => process.exit(1), 300);
     return;
@@ -225,6 +243,9 @@ const server = http.createServer((req, res) => {
   return sendJson(res, 404, { error: "Not found" });
 });
 
+function handleUnlock(req, res) {
+  let body=""; req.on("data",c=>{body+=c;}); req.on("end",()=>{let d;try{d=JSON.parse(body||"{}");}catch{return sendJson(res,400,{error:"Invalid JSON"});} if(!ADMIN_PASSWORD)return sendJson(res,503,{error:"ADMIN_PASSWORD не задана в Render."}); if(typeof d.password!=="string"||!safeEqual(d.password,ADMIN_PASSWORD))return sendJson(res,401,{error:"Неверный дополнительный пароль."}); const id=crypto.randomBytes(32).toString("hex");adminSessions.add(id);res.writeHead(200,{"Set-Cookie":"case_admin_session="+id+"; HttpOnly; Secure; SameSite=Strict; Path=/admin; Max-Age=43200","Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify({ok:true}));});
+}
 function handleMaintenancePost(req, res) {
   let body = "";
   let tooLarge = false;
@@ -246,18 +267,21 @@ function handleMaintenancePost(req, res) {
       return sendJson(res, 400, { error: 'Expected {"active":true} or {"active":false}' });
     }
 
+    const wasActive = maintenance.active;
     maintenance = {
       active: data.active,
       message: typeof data.message === "string" && data.message.trim()
         ? data.message.trim().slice(0, 500)
         : maintenance.message
     };
+    if (wasActive !== maintenance.active) addLog(maintenance.active ? "Tech jobs ON" : "Tech jobs OFF");
     broadcast();
     return sendJson(res, 200, { ok: true, ...maintenance });
   });
 }
 
 server.listen(PORT, "0.0.0.0", () => {
+  addLog("Server online");
   console.log(`CASE Online maintenance API listening on port ${PORT}`);
   if (!TOKEN) console.warn("MAINTENANCE_TOKEN is not set; maintenance changes are disabled.");
 });
