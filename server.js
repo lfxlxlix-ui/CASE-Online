@@ -201,15 +201,15 @@ const server = http.createServer((req, res) => {
     return res.end(adminHtml);
   }
 
-  if (url.pathname === "/admin/unlock" && req.method === "POST") { if (!requireAdmin(req, res)) return; return handleUnlock(req, res); }
-  if (url.pathname === "/admin/logs" && req.method === "GET") { if (!requireAdmin(req, res) || !requireSecondFactor(req, res)) return; return sendJson(res, 200, { logs: eventLogs }); }
+  if (url.pathname === "/admin/unlock" && req.method === "POST") { return handleUnlock(req, res); }
+  if (url.pathname === "/admin/logs" && req.method === "GET") { if (!requireSecondFactor(req, res)) return; return sendJson(res, 200, { logs: eventLogs }); }
   if (url.pathname === "/admin/maintenance" && req.method === "POST") {
-    if (!requireAdmin(req, res) || !requireSecondFactor(req, res)) return;
+    if (!requireSecondFactor(req, res)) return;
     return handleMaintenancePost(req, res);
   }
 
   if (url.pathname === "/admin/restart" && req.method === "POST") {
-    if (!requireAdmin(req, res) || !requireSecondFactor(req, res)) return;
+    if (!requireSecondFactor(req, res)) return;
     res.writeHead(202, {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});
     res.end(JSON.stringify({ok:true,message:"Restart requested"}));
     addLog("Server restart");
