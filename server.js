@@ -88,6 +88,7 @@ textarea{width:100%;min-height:110px;resize:vertical;border-radius:10px;border:1
 button{min-height:48px;border:0;border-radius:10px;padding:12px;font:inherit;font-weight:700;cursor:pointer}
 button:disabled{opacity:.55;cursor:wait}
 .start{background:#ff626b;color:#21070a}.stop{background:#42d392;color:#062217}
+.restart{background:#f5bd54;color:#271a00;width:100%;margin-top:12px}
 #notice{min-height:1.5em;margin-top:14px;font-size:.92rem}
 small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 @media(max-width:380px){.actions{grid-template-columns:1fr}}
@@ -104,8 +105,9 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 <button class="start" id="enable" type="button">Включить обслуживание</button>
 <button class="stop" id="disable" type="button">Выключить обслуживание</button>
 </div>
+<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button>
 <div id="notice" role="status" aria-live="polite"></div>
-<small>Доступ защищён входом администратора. Не передавай пароль другим людям.</small>
+<small>Перезапуск временно отключит API. Текущее состояние обслуживания сбросится после перезапуска. Доступ защищён входом администратора.</small>
 </main>
 <script>
 const statusBox=document.getElementById('status');
@@ -113,6 +115,7 @@ const statusText=document.getElementById('statusText');
 const messageInput=document.getElementById('message');
 const notice=document.getElementById('notice');
 const buttons=[document.getElementById('enable'),document.getElementById('disable')];
+const restartButton=document.getElementById('restart');
 function render(data){
   statusBox.className='status '+(data.active?'on':'off');
   statusText.textContent=data.active?'Обслуживание ВКЛЮЧЕНО':'Обслуживание ВЫКЛЮЧЕНО';
@@ -143,6 +146,19 @@ async function setMaintenance(active){
 }
 buttons[0].addEventListener('click',()=>setMaintenance(true));
 buttons[1].addEventListener('click',()=>setMaintenance(false));
+restartButton.addEventListener('click',async()=>{
+  if(!window.confirm('Перезапустить сервер сейчас? На время перезапуска API будет недоступен, а режим обслуживания сбросится.')) return;
+  restartButton.disabled=true;
+  buttons.forEach(button=>button.disabled=true);
+  notice.textContent='Отправляю команду перезапуска… Страница может временно перестать отвечать.';
+  try{
+    const response=await fetch('/admin/restart',{method:'POST'});
+    if(!response.ok) throw new Error('Не удалось запросить перезапуск ('+response.status+').');
+    notice.textContent='Команда принята. Подожди, пока Render перезапустит сервис, затем обнови страницу.';
+  }catch(error){
+    notice.textContent='Соединение прервано или перезапуск начался. Подожди немного и обнови страницу.';
+  }
+});
 refresh();
 </script>
 </body></html>`;
@@ -173,6 +189,15 @@ const server = http.createServer((req, res) => {
   if (url.pathname === "/admin/maintenance" && req.method === "POST") {
     if (!requireAdmin(req, res)) return;
     return handleMaintenancePost(req, res);
+  }
+
+  if (url.pathname === "/admin/restart" && req.method === "POST") {
+    if (!requireAdmin(req, res)) return;
+    res.writeHead(202, {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});
+    res.end(JSON.stringify({ok:true,message:"Restart requested"}));
+    console.warn("Admin requested a service restart.");
+    setTimeout(() => process.exit(1), 300);
+    return;
   }
 
   if (url.pathname === "/api/maintenance" && req.method === "GET") {
