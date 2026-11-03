@@ -2,6 +2,7 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { Server } = require("socket.io");
 
 const PORT = Number(process.env.PORT) || 3000;
 const TOKEN = process.env.MAINTENANCE_TOKEN;
@@ -241,6 +242,110 @@ const server = http.createServer((req, res) => {
   }
 
   return sendJson(res, 404, { error: "Not found" });
+});
+
+
+const io = new Server(server, {
+  cors: { origin: ALLOWED_ORIGIN === "*" ? true : ALLOWED_ORIGIN, methods: ["GET", "POST"] },
+  maxHttpBufferSize: 1e5
+});
+const rooms = new Map();
+const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function makeRoomCode() {
+  let code;
+  do { code = Array.from({length:5}, () => ROOM_ALPHABET[crypto.randomInt(ROOM_ALPHABET.length)]).join(""); }
+  while (rooms.has(code));
+  return code;
+}
+function publicRoom(room) {
+  return {
+    code: room.code, hostId: room.hostId, status: room.status, maxPlayers: room.maxPlayers,
+    players: [...room.players.values()].map(p => ({id:p.id,name:p.name,ready:p.ready,role:p.role,x:p.x,y:p.y,angle:p.angle,survivorClass:p.survivorClass,animatronicChoice:p.animatronicChoice,character:p.character}))
+  };
+}
+function emitRoom(room) { io.to(room.code).emit("room:update", publicRoom(room)); }
+function ackError(ack, error) { if (typeof ack === "function") ack({ok:false,error}); }
+function findRoom(socket) {
+  const code = socket.data.roomCode;
+  return code ? rooms.get(code) : null;
+}
+function leaveRoom(socket) {
+  const room = findRoom(socket);
+  if (!room) return;
+  room.players.delete(socket.id);
+  socket.leave(room.code);
+  socket.data.roomCode = null;
+  if (!room.players.size) { rooms.delete(room.code); return; }
+  if (room.hostId === socket.id) room.hostId = room.players.keys().next().value;
+  if (room.status === "playing") {
+    room.status = "finished";
+    io.to(room.code).emit("game:ended", {message:"Игрок покинул матч."});
+    rooms.delete(room.code);
+  } else emitRoom(room);
+}
+io.on("connection", socket => {
+  socket.on("room:create", (data={}, ack) => {
+    leaveRoom(socket);
+    const room = {code:makeRoomCode(),hostId:socket.id,status:"waiting",maxPlayers:5,players:new Map()};
+    room.players.set(socket.id,{id:socket.id,name:String(data.name||"Игрок").trim().slice(0,18)||"Игрок",ready:false,role:null,x:2.5,y:1.5,angle:0,survivorClass:"aimer",animatronicChoice:"owl"});
+    rooms.set(room.code,room);socket.join(room.code);socket.data.roomCode=room.code;
+    if(typeof ack==="function")ack({ok:true,room:publicRoom(room),host:true});
+    emitRoom(room);
+  });
+  socket.on("room:join", (data={}, ack) => {
+    const code=String(data.code||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    const room=rooms.get(code);
+    if(!room||room.status!=="waiting")return ackError(ack,"Комната не найдена или матч уже начался.");
+    if(room.players.size>=room.maxPlayers)return ackError(ack,"Комната заполнена.");
+    leaveRoom(socket);
+    room.players.set(socket.id,{id:socket.id,name:String(data.name||"Игрок").trim().slice(0,18)||"Игрок",ready:false,role:null,x:2.5,y:1.5,angle:0,survivorClass:"aimer",animatronicChoice:"owl"});
+    socket.join(room.code);socket.data.roomCode=room.code;
+    if(typeof ack==="function")ack({ok:true,room:publicRoom(room),host:false});
+    emitRoom(room);
+  });
+  socket.on("player:ready", (ready, ack) => {
+    const room=findRoom(socket),p=room?.players.get(socket.id);
+    if(!p||room.status!=="waiting")return ackError(ack,"Сейчас нельзя изменить готовность.");
+    p.ready=!!ready;if(typeof ack==="function")ack({ok:true,room:publicRoom(room),host:room.hostId===socket.id});emitRoom(room);
+  });
+  socket.on("player:loadout", (data={}, ack) => {
+    const room=findRoom(socket),p=room?.players.get(socket.id);
+    if(!p||room.status!=="waiting")return ackError(ack,"Комната не найдена.");
+    if(["aimer","medic","support"].includes(data.survivorClass))p.survivorClass=data.survivorClass;
+    if(["cat","wolf","bull","owl"].includes(data.animatronicChoice))p.animatronicChoice=data.animatronicChoice;
+    if(typeof ack==="function")ack({ok:true,room:publicRoom(room),host:room.hostId===socket.id});emitRoom(room);
+  });
+  socket.on("game:start", (ack) => {
+    const room=findRoom(socket);
+    if(!room||room.hostId!==socket.id)return ackError(ack,"Начать матч может только создатель комнаты.");
+    if(room.status!=="waiting"||room.players.size<2)return ackError(ack,"Для матча нужно минимум два игрока.");
+    if([...room.players.values()].some(p=>!p.ready&&p.id!==room.hostId))return ackError(ack,"Не все игроки готовы.");
+    room.status="playing";
+    const players=[...room.players.values()],hunter=players[crypto.randomInt(players.length)];
+    players.forEach((p,i)=>{p.role=p===hunter?"animatronic":"survivor";p.x=p.role==="animatronic"?12.5:2.5+(i%2)*.5;p.y=p.role==="animatronic"?8.5:1.5+Math.floor(i/2)*.5;p.angle=0;p.ready=false;p.character=p.role==="animatronic"?p.animatronicChoice:p.survivorClass;});
+    const state=publicRoom(room);
+    io.to(room.code).emit("game:started",state);
+    if(typeof ack==="function")ack({ok:true,room:state,host:true});
+    emitRoom(room);
+  });
+  socket.on("player:move", data => {
+    const room=findRoom(socket),p=room?.players.get(socket.id);
+    if(!p||room.status!=="playing"||!data)return;
+    const x=Number(data.x),y=Number(data.y),angle=Number(data.angle);
+    if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(angle)||Math.abs(x)>100||Math.abs(y)>100)return;
+    p.x=x;p.y=y;p.angle=angle;
+    socket.to(room.code).emit("player:moved",{id:p.id,x:p.x,y:p.y,angle:p.angle,role:p.role,character:p.character});
+  });
+  socket.on("player:tag", data => {
+    const room=findRoom(socket),hunter=room?.players.get(socket.id),target=room?.players.get(String(data?.targetId||""));
+    if(!room||room.status!=="playing"||!hunter||hunter.role!=="animatronic"||!target||target.role!=="survivor")return;
+    if(Math.hypot(target.x-hunter.x,target.y-hunter.y)>1.5)return;
+    io.to(room.code).emit("game:ended",{message:"Аниматроник поймал игрока. Раунд завершён."});
+    room.status="finished";rooms.delete(room.code);
+    for(const id of room.players.keys()){const s=io.sockets.sockets.get(id);if(s)s.data.roomCode=null;}
+  });
+  socket.on("room:leave",()=>leaveRoom(socket));
+  socket.on("disconnect",()=>leaveRoom(socket));
 });
 
 function handleUnlock(req, res) {
