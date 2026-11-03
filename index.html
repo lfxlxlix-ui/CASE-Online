@@ -87,25 +87,40 @@ function botCanSeePlayer(){
  for(let i=1;i<steps;i++){const t=i/steps;if(wall(mx+dx*t,my+dy*t))return false}
  return true;
 }
-function updateBot(dt,now){
- if(role!=="survivor"||networkGame)return;
- if(botCanSeePlayer()){botMode="chase";botLastSeen={x:px,y:py};botSearchUntil=now+6500;botTarget={...botLastSeen};}
- else if(botMode==="chase"){botMode="search";botTarget=botLastSeen?{...botLastSeen}:null;botSearchUntil=now+6500;botPath=[];}
- if(botMode==="search"&&now>botSearchUntil){botMode="patrol";botTarget=null;botPath=[];botNextPatrol=0;}
- if(botMode==="patrol"&&(!botTarget||Math.hypot(mx-botTarget.x,my-botTarget.y)<.45||now>botNextPatrol)){
-  const spots=openTiles().filter(p=>Math.hypot(p.x-mx,p.y-my)>3);
-  botTarget=spots[Math.floor(Math.random()*spots.length)]||{x:2.5,y:1.5};botNextPatrol=now+12000;botPath=[];
+let aiAutoplay=new URLSearchParams(location.search).get("mode")==="ai-vs-ai",aiTarget=null,aiPath=[],aiPathIndex=0,aiActionAt=0,aiTargetKey="";
+function updateSurvivorAI(dt,now){
+ if(!aiAutoplay||!running||role!=="survivor")return;
+ for(const k of ["w","a","s","d"])keys[k]=false;
+ if(minigame){
+  // The AI times repair inputs inside the moving success zone, using the same repair minigame as a human.
+  if(now>=aiActionAt){minigame.phase=minigame.zone+minigame.width*.5;keys.e=true;window.dispatchEvent(new KeyboardEvent("keydown",{key:"e",code:"KeyE",bubbles:true}));window.dispatchEvent(new KeyboardEvent("keyup",{key:"e",code:"KeyE",bubbles:true}));aiActionAt=now+650;}
+  return;
  }
- if(!botTarget)return;
- if(now>=botRepathAt||!botPath.length||botPathIndex>=botPath.length){
-  botPath=findPath(mx,my,botTarget.x,botTarget.y);botPathIndex=0;botRepathAt=now+(botMode==="chase"?250:700);
+ let target=null,key="";
+ const nextFuse=fuses.find(f=>!f.taken);
+ const nextPanel=panels.find(p=>!p.repaired);
+ if(nextFuse){target={x:nextFuse.x,y:nextFuse.y,type:"fuse",obj:nextFuse};key="fuse"+nextFuse.id;}
+ else if(nextPanel){target={x:nextPanel.x,y:nextPanel.y,type:"panel",obj:nextPanel};key="panel"+nextPanel.id;}
+ else {target={x:exitDoor.x,y:exitDoor.y,type:"door",obj:exitDoor};key="door";}
+ if(key!==aiTargetKey){aiTargetKey=key;aiPath=findPath(px,py,target.x,target.y);aiPathIndex=0;}
+ aiTarget=target;
+ let dist=Math.hypot(target.x-px,target.y-py);
+ if(dist<.78){
+  angle=Math.atan2(target.y-py,target.x-px);
+  keys.w=keys.a=keys.s=keys.d=false;
+  if(now>=aiActionAt){
+   if(target.type==="fuse"){target.obj.taken=true;found++;aiActionAt=now+180;aiTargetKey="";}
+   else if(target.type==="panel"&&fuses.some(f=>f.taken)){minigame={panel:target.obj,phase:0,zone:.3,width:.25};aiActionAt=now+300;}
+   else if(target.type==="door"&&doorOpen){end("ИИ ВЫБРАЛСЯ","Выживший-ИИ собрал предохранители, починил электрощиты и открыл дверь.");}
+   else if(target.type==="door"){doorOpen=true;doorOpenUntil=Infinity;aiActionAt=now+300;}
+  }
+  return;
  }
- let waypoint=botPath[botPathIndex];
- if(waypoint&&Math.hypot(mx-waypoint.x,my-waypoint.y)<.22){botPathIndex++;waypoint=botPath[botPathIndex]}
- if(!waypoint){if(botMode==="search"){botTarget=null;botMode="patrol";botNextPatrol=0;}return}
- const a=Math.atan2(waypoint.y-my,waypoint.x-mx),step=Math.min(1*dt,Math.hypot(waypoint.x-mx,waypoint.y-my));
- const nx=mx+Math.cos(a)*step,ny=my+Math.sin(a)*step;
- if(!wall(nx,my))mx=nx;if(!wall(mx,ny))my=ny;
+ if(!aiPath.length||aiPathIndex>=aiPath.length){aiPath=findPath(px,py,target.x,target.y);aiPathIndex=0;}
+ let wp=aiPath[aiPathIndex];
+ if(wp&&Math.hypot(px-wp.x,py-wp.y)<.2){aiPathIndex++;wp=aiPath[aiPathIndex];}
+ if(!wp){angle=Math.atan2(target.y-py,target.x-px);keys.w=true;return;}
+ angle=Math.atan2(wp.y-py,wp.x-px);keys.w=true;
 }
 let soloSessionId="",soloSessionCode="",lastTelemetry=0;
 function generateMap(){const rows=11,cols=16,g=Array.from({length:rows},(_,y)=>Array.from({length:cols},(_,x)=>(!x||!y||x===cols-1||y===rows-1)?'1':'0'));for(let y=2;y<rows-1;y++)for(let x=2;x<cols-1;x++)if(Math.random()<.2)g[y][x]='1';g[1][1]=g[1][2]=g[2][1]='0';g[8][14]=g[9][14]=g[8][13]='0';const seen=new Set(['1,1']),q=[[1,1]];for(let i=0;i<q.length;i++){const [x,y]=q[i];for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy,k=X+','+Y;if(X>0&&Y>0&&X<cols-1&&Y<rows-1&&g[Y][X]==='0'&&!seen.has(k)){seen.add(k);q.push([X,Y])}}}for(let y=1;y<rows-1;y++)for(let x=1;x<cols-1;x++)if(!seen.has(x+','+y))g[y][x]='1';return g.map(row=>row.join(''));}
@@ -114,7 +129,7 @@ const keys={};let role='survivor',running=false,angle=0,px=2.5,py=1.5,mx=12.5,my
 const $=id=>document.getElementById(id);
 function wall(x,y){return y<0||y>=map.length||x<0||x>=map[0].length||map[Math.floor(y)][Math.floor(x)]==='1'}
 function move(x,y,dx,dy){if(!wall(x+dx+.14*Math.sign(dx),y))x+=dx;if(!wall(x,y+dy+.14*Math.sign(dy)))y+=dy;return[x,y]}
-function start(r){map=generateMap();networkGame=false;remotePlayers={};soloSessionId='solo_'+Math.random().toString(36).slice(2,14);soloSessionCode=Array.from({length:5},()=> 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');lastTelemetry=0;role=r;px=2.5;py=1.5;angle=0;const botSpawnCandidates=openTiles().filter(p=>Math.hypot(p.x-px,p.y-py)>=5);const botSpawn=botSpawnCandidates[Math.floor(Math.random()*botSpawnCandidates.length)]||openTiles().find(p=>Math.hypot(p.x-px,p.y-py)>=5)||{x:12.5,y:8.5};mx=botSpawn.x;my=botSpawn.y;botMode='patrol';botTarget=null;botLastSeen=null;botSearchUntil=0;botNextPatrol=0;botPath=[];botPathIndex=0;botRepathAt=0;elapsed=0;night=false;flash=true;battery=100;found=0;const allSpots=openTiles().filter(p=>Math.hypot(p.x-2.5,p.y-1.5)>2);const nearWall=p=>[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>wall(p.x+dx,p.y+dy));const panelSpots=allSpots.filter(nearWall).sort(()=>Math.random()-.5);const fuseSpots=allSpots.filter(p=>!panelSpots.slice(0,3).some(q=>q.x===p.x&&q.y===p.y)).sort(()=>Math.random()-.5);fuses=fuseSpots.splice(0,3).map((p,i)=>({...p,id:i,taken:false}));panels=panelSpots.splice(0,3).map((p,i)=>({...p,id:i,repaired:false,progress:0}));exitDoor={x:14.5,y:8.5};doorOpen=false;doorOpenUntil=0;doorChance=Math.random()<.03;repairing=false;repairTarget=null;running=true;$('menu').classList.add('hidden');$('end').classList.add('hidden');$('hud').classList.remove('hidden');$('roleLabel').textContent=r==='survivor'?'РОЛЬ: ВЫЖИВШИЙ':'РОЛЬ: АНИМАТРОНИК';$('objective').textContent=r==='survivor'?'НАЙДИ ВЫХОД':'НАЙДИ ИГРОКА';$('hint').textContent=r==='survivor'?'WASD — движение · мышь — обзор · F — фонарь':'WASD — движение · мышь — обзор · F — ночное видение';last=performance.now();requestAnimationFrame(loop)}
+function start(r){map=generateMap();networkGame=false;remotePlayers={};soloSessionId='solo_'+Math.random().toString(36).slice(2,14);soloSessionCode=Array.from({length:5},()=> 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');lastTelemetry=0;role=r;px=2.5;py=1.5;angle=0;const botSpawnCandidates=openTiles().filter(p=>Math.hypot(p.x-px,p.y-py)>=5);const botSpawn=botSpawnCandidates[Math.floor(Math.random()*botSpawnCandidates.length)]||openTiles().find(p=>Math.hypot(p.x-px,p.y-py)>=5)||{x:12.5,y:8.5};mx=botSpawn.x;my=botSpawn.y;botMode='patrol';botTarget=null;botLastSeen=null;botSearchUntil=0;botNextPatrol=0;botPath=[];botPathIndex=0;botRepathAt=0;elapsed=0;night=false;flash=true;battery=100;found=0;const allSpots=openTiles().filter(p=>Math.hypot(p.x-2.5,p.y-1.5)>2);const nearWall=p=>[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>wall(p.x+dx,p.y+dy));const panelSpots=allSpots.filter(nearWall).sort(()=>Math.random()-.5);const fuseSpots=allSpots.filter(p=>!panelSpots.slice(0,3).some(q=>q.x===p.x&&q.y===p.y)).sort(()=>Math.random()-.5);fuses=fuseSpots.splice(0,3).map((p,i)=>({...p,id:i,taken:false}));panels=panelSpots.splice(0,3).map((p,i)=>({...p,id:i,repaired:false,progress:0}));exitDoor={x:14.5,y:8.5};doorOpen=false;doorOpenUntil=0;doorChance=Math.random()<.03;repairing=false;repairTarget=null;running=true;$('menu').classList.add('hidden');$('end').classList.add('hidden');$('hud').classList.remove('hidden');$('roleLabel').textContent=r==='survivor'?'РОЛЬ: ВЫЖИВШИЙ':'РОЛЬ: АНИМАТРОНИК';$('objective').textContent=r==='survivor'?'НАЙДИ ВЫХОД':'НАЙДИ ИГРОКА';$('hint').textContent=r==='survivor'?'WASD — движение · мышь — обзор · F — фонарь':'WASD — движение · мышь — обзор · F — ночное видение';last=performance.now();if(aiAutoplay){$('menu').classList.add('hidden');$('hint').textContent='АВТОМАТИЧЕСКИЙ МАТЧ: ИИ СОБИРАЕТ ПРЕДОХРАНИТЕЛИ, ЧИНИТ ЩИТЫ И ИЩЕТ ВЫХОД';}requestAnimationFrame(loop)}
 function castRay(a){let d=0,step=.035;while(d<18){d+=step;let x=px+Math.cos(a)*d,y=py+Math.sin(a)*d;if(wall(x,y))return{d:d*Math.cos(a-angle),x,y}}return{d:18,x:px+Math.cos(a)*18,y:py+Math.sin(a)*18}}
 function hasLineOfSight(x,y){const dx=x-px,dy=y-py,d=Math.hypot(dx,dy),steps=Math.ceil(d/.06);for(let i=1;i<steps;i++){const t=i/steps;if(wall(px+dx*t,py+dy*t))return false;}return true;}
 function aimedObject(){let best=null,score=.12;for(const [type,list] of [['fuse',fuses.filter(x=>!x.taken)],['panel',panels.filter(x=>!x.repaired)],['door',[exitDoor]]])for(const o of list){if(!o)continue;const d=Math.hypot(o.x-px,o.y-py),a=Math.atan2(o.y-py,o.x-px)-angle,err=Math.abs(Math.atan2(Math.sin(a),Math.cos(a)));if(d<2.4&&err<score&&hasLineOfSight(o.x,o.y)){score=err;best={type,obj:o,d}}}return best}
@@ -130,7 +145,7 @@ function end(title,text){running=false;$('endTitle').textContent=title;$('endTex
 function loop(now){
  if(!running)return;
  let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;updateInteraction(dt);
- let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
+ updateSurvivorAI(dt,now);\n let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
  let s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
  let speed=role==='animatronic'?1:1.7;
  let dx=(Math.cos(angle)*f-Math.sin(angle)*s)*speed*dt;
@@ -160,7 +175,7 @@ window.addEventListener('keydown',e=>{
  const k=controlKey(e);keys[k]=true;
  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
  if(k==='f'&&running){if(role==='animatronic')night=!night;else if(battery>0)flash=!flash}
- if(k==='e'&&running&&!e.repeat&&role==='survivor'){if(minigame){const m=minigame;if(m.phase>=m.zone&&m.phase<=m.zone+m.width){m.panel.progress=Math.min(100,m.panel.progress+10);m.zone=Math.random()*(1-m.width);m.phase=0;if(m.panel.progress>=100){m.panel.repaired=true;minigame=null;$('hint').textContent='ЭЛЕКТРОЩИТ ПОЧИНЕН';if(panels.every(p=>p.repaired)||doorChance&&panels.filter(p=>p.repaired).length>=2){doorOpen=true;doorOpenUntil=Infinity;$('hint').textContent='ВЫХОД ОТКРЫТ — НАВЕДИСЬ НА ДВЕРЬ И НАЖМИ E';}}}else $('hint').textContent='ПРОМАХ — ДОЖДИСЬ ЗОНЫ И НАЖМИ E';}else if(repairTarget?.type==='fuse'){repairTarget.obj.taken=true;found++;$('hint').textContent='ПРЕДОХРАНИТЕЛЬ ПОДОБРАН ('+found+'/3)';}else if(repairTarget?.type==='panel'){if(!fuses.some(f=>f.taken))$('hint').textContent='СНАЧАЛА СОБЕРИ ХОТЯ БЫ 1 ПРЕДОХРАНИТЕЛЬ';else minigame={panel:repairTarget.obj,phase:0,zone:Math.random()*.7,width:.2};}else if(repairTarget?.type==='door'){if(doorOpen){end('ТЫ ВЫБРАЛСЯ','Ты открыл дверь и выбрался из комплекса.');return;}if(panels.every(p=>p.repaired)||doorChance&&panels.filter(p=>p.repaired).length>=2){doorOpen=true;doorOpenUntil=Infinity;$('hint').textContent='ВЫХОД ОТКРЫТ — НАВЕДИСЬ НА ДВЕРЬ И НАЖМИ E';}else $('hint').textContent='СНАЧАЛА ПОЧИНИ ГЕНЕРАТОРЫ';}}if(k==='e'&&running&&networkGame&&role==='animatronic')tryTagNearest();
+ if(k==='e'&&running&&!e.repeat&&role==='survivor'&&!aiAutoplay){if(minigame){const m=minigame;if(m.phase>=m.zone&&m.phase<=m.zone+m.width){m.panel.progress=Math.min(100,m.panel.progress+10);m.zone=Math.random()*(1-m.width);m.phase=0;if(m.panel.progress>=100){m.panel.repaired=true;minigame=null;$('hint').textContent='ЭЛЕКТРОЩИТ ПОЧИНЕН';if(panels.every(p=>p.repaired)||doorChance&&panels.filter(p=>p.repaired).length>=2){doorOpen=true;doorOpenUntil=Infinity;$('hint').textContent='ВЫХОД ОТКРЫТ — НАВЕДИСЬ НА ДВЕРЬ И НАЖМИ E';}}}else $('hint').textContent='ПРОМАХ — ДОЖДИСЬ ЗОНЫ И НАЖМИ E';}else if(repairTarget?.type==='fuse'){repairTarget.obj.taken=true;found++;$('hint').textContent='ПРЕДОХРАНИТЕЛЬ ПОДОБРАН ('+found+'/3)';}else if(repairTarget?.type==='panel'){if(!fuses.some(f=>f.taken))$('hint').textContent='СНАЧАЛА СОБЕРИ ХОТЯ БЫ 1 ПРЕДОХРАНИТЕЛЬ';else minigame={panel:repairTarget.obj,phase:0,zone:Math.random()*.7,width:.2};}else if(repairTarget?.type==='door'){if(doorOpen){end('ТЫ ВЫБРАЛСЯ','Ты открыл дверь и выбрался из комплекса.');return;}if(panels.every(p=>p.repaired)||doorChance&&panels.filter(p=>p.repaired).length>=2){doorOpen=true;doorOpenUntil=Infinity;$('hint').textContent='ВЫХОД ОТКРЫТ — НАВЕДИСЬ НА ДВЕРЬ И НАЖМИ E';}else $('hint').textContent='СНАЧАЛА ПОЧИНИ ГЕНЕРАТОРЫ';}}if(k==='e'&&running&&networkGame&&role==='animatronic')tryTagNearest();
  if(k==='escape'&&running){running=false;$('hud').classList.add('hidden');$('menu').classList.remove('hidden')}
 });
 window.addEventListener('keyup',e=>{keys[controlKey(e)]=false;if(controlKey(e)==='e')repairing=false;});canvas.addEventListener('contextmenu',e=>e.preventDefault());
