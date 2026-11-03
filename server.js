@@ -119,7 +119,7 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 <button class="start" id="enable" type="button">Включить обслуживание</button>
 <button class="stop" id="disable" type="button">Выключить обслуживание</button>
 </div>
-<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Просмотр матчей</h2><p>Активные одиночные сессии и сетевые матчи. Обновляется каждые 2 секунды.</p><div id="matches"><p>Загрузка матчей…</p></div><h2>Наблюдение: ИИ против ИИ</h2><p>Запускает один наблюдаемый матч двух ИИ на случайной карте. Ход матча отображается здесь в реальном времени.</p><button id="runSimulations" type="button" style="width:100%;background:#7c9cff;color:#101626">▶ Запустить матч ИИ против ИИ</button><div id="simSummary" aria-live="polite"></div><div id="simulations"></div><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
+<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Просмотр матчей</h2><p>Активные одиночные сессии и сетевые матчи. Обновляется каждые 2 секунды.</p><div id="matches"><p>Загрузка матчей…</p></div><h2>Игра: игрок против ИИ</h2><p>Запускает игровую сцену CASE Online: ты управляешь игроком, а ИИ действует по логике самой игры.</p><button id="runSimulations" type="button" style="width:100%;background:#7c9cff;color:#101626">▶ Играть против ИИ</button><div id="simSummary" aria-live="polite"></div><div id="simulations"></div><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
 <div id="notice" role="status" aria-live="polite"></div>
 <small>Перезапуск временно отключит API. Текущее состояние обслуживания сбросится после перезапуска. Доступ защищён входом администратора.</small>
 </main>
@@ -127,34 +127,19 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 const gate=document.getElementById("secondGate"),panel=document.getElementById("adminPanel");
 document.getElementById("unlockForm").addEventListener("submit",async e=>{e.preventDefault();const note=document.getElementById("unlockNotice");note.textContent="Проверяю…";try{const r=await fetch("/admin/unlock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("adminPassword").value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка входа");gate.hidden=true;panel.hidden=false;refresh();loadLogs();loadMatches();loadSimulations();setInterval(loadMatches,2000);}catch(x){note.textContent=x.message;}});
 async function loadMatches(){try{const r=await fetch("/admin/matches",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить матчи");const d=await r.json(),box=document.getElementById("matches");box.replaceChildren();if(!d.matches.length){box.textContent="Активных матчей нет. Открой игру и начни раунд.";return;}d.matches.forEach(m=>{const card=document.createElement("section");card.style.cssText="margin:12px 0;padding:12px;border:1px solid #454d60;border-radius:12px;background:#11151d";const title=document.createElement("h3");title.textContent=(m.mode==="solo"?"Одиночный матч":"Сетевой матч")+" · "+(m.code||"без кода");card.appendChild(title);const meta=document.createElement("p");meta.textContent="Игроков: "+(m.players||[]).length+" · Время: "+Math.floor((m.elapsed||0)/60)+":"+String(Math.floor((m.elapsed||0)%60)).padStart(2,"0");card.appendChild(meta);if(Array.isArray(m.map)&&m.map.length){const grid=document.createElement("div");grid.style.cssText="display:grid;grid-template-columns:repeat("+Math.max(1,m.map[0].length)+",minmax(2px,1fr));gap:1px;max-width:100%;aspect-ratio:"+m.map[0].length+"/"+m.map.length+";background:#202832;overflow:hidden";m.map.forEach(row=>{for(const ch of row){const cell=document.createElement("i");cell.style.cssText="display:block;min-width:0;min-height:0;background:"+(ch==="1"?"#4b5563":"#18222b");grid.appendChild(cell);}});(m.objects||[]).forEach(o=>{const dot=document.createElement("span");dot.title=o.type+" "+o.state;dot.style.cssText="position:absolute;width:8px;height:8px;border-radius:50%;background:"+(o.type==="panel"?(o.state==="repaired"?"#36d399":"#ff9b42"):o.type==="fuse"?"#ffe36b":o.type==="door"?(o.state==="open"?"#36d399":"#e54855"):"#fff");dot.style.left=(o.x/(m.map[0].length)*100)+"%";dot.style.top=(o.y/m.map.length*100)+"%";grid.style.position="relative";grid.appendChild(dot);});(m.players||[]).forEach(p=>{const dot=document.createElement("span");dot.title=(p.name||"Игрок")+" · "+p.role;dot.style.cssText="position:absolute;width:10px;height:10px;border:2px solid #fff;border-radius:50%;background:"+(p.role==="animatronic"||p.role==="bot"?"#f04452":"#38a5ff")+";left:"+(p.x/m.map[0].length*100)+"%;top:"+(p.y/m.map.length*100)+"%;transform:translate(-50%,-50%) rotate("+(p.angle||0)+"rad)";grid.appendChild(dot);});card.appendChild(grid);}const list=document.createElement("p");list.textContent=(m.players||[]).map(p=>(p.name||"Игрок")+" ("+p.role+")").join(" · ");card.appendChild(list);box.appendChild(card);});}catch(e){document.getElementById("matches").textContent=e.message;}}
-let arenaTimer=null;
-async function loadSimulations(){document.getElementById("simSummary").textContent="Нажми кнопку, чтобы запустить матч двух ИИ и наблюдать за ними в реальном времени.";document.getElementById("simulations").replaceChildren();}
-function renderLiveMatch(m){
- const box=document.getElementById("simulations"),summary=document.getElementById("simSummary");box.replaceChildren();
- const card=document.createElement("section");card.style.cssText="margin:12px 0;padding:12px;border:1px solid #454d60;border-radius:12px;background:#11151d";
- const h=document.createElement("h3");h.textContent="Матч ИИ против ИИ · идёт игра";card.appendChild(h);
- const p=document.createElement("p");p.textContent="Синий ИИ пытается убежать, красный преследует. Матч идёт в этой панели.";card.appendChild(p);
- const grid=document.createElement("div");grid.style.cssText="display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;max-width:560px;aspect-ratio:16/11;background:#202832;position:relative";
- m.map.forEach(row=>{for(const ch of row){const cell=document.createElement("i");cell.style.cssText="aspect-ratio:1;background:"+(ch==="1"?"#4b5563":"#18222b");grid.appendChild(cell);}});
- const blue=document.createElement("span"),red=document.createElement("span");
- for(const [dot,color,label] of [[blue,"#38a5ff","ИИ-Синий"],[red,"#f04452","ИИ-Красный"]]){dot.title=label;dot.style.cssText="position:absolute;width:3.4%;aspect-ratio:1;border:2px solid white;border-radius:50%;background:"+color+";transform:translate(-50%,-50%);z-index:2";grid.appendChild(dot);}
- card.appendChild(grid);const detail=document.createElement("p");card.appendChild(detail);box.appendChild(card);
- const rows=m.map.length,cols=m.map[0].length,open=(x,y)=>x>=0&&y>=0&&x<cols&&y<rows&&m.map[y][x]==="0";
- let bluePos={x:2,y:1},redPos={x:13,y:8},ticks=0,ended=false;
- function place(dot,pos){dot.style.left=((pos.x+.5)/cols*100)+"%";dot.style.top=((pos.y+.5)/rows*100)+"%";}
- function pathStep(from,to){
-   const q=[[from.x,from.y]],prev=new Map([[from.x+","+from.y,null]]);
-   for(let i=0;i<q.length;i++){const [x,y]=q[i];if(x===to.x&&y===to.y)break;for(const [nx,ny] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]){const k=nx+","+ny;if(open(nx,ny)&&!prev.has(k)){prev.set(k,x+","+y);q.push([nx,ny]);}}}
-   let k=to.x+","+to.y;if(!prev.has(k))return from;let last=k;while(prev.get(last)&&prev.get(last)!==from.x+","+from.y)last=prev.get(last);const parts=last.split(",").map(Number);return {x:parts[0],y:parts[1]};
- }
- function fleeStep(from,threat){const opts=[[from.x,from.y],[from.x+1,from.y],[from.x-1,from.y],[from.x,from.y+1],[from.x,from.y-1]].filter(v=>open(v[0],v[1]));opts.sort((a,b)=>Math.hypot(b[0]-threat.x,b[1]-threat.y)-Math.hypot(a[0]-threat.x,a[1]-threat.y));return {x:opts[0][0],y:opts[0][1]};}
- function tick(){if(ended)return;ticks++;redPos=pathStep(redPos,bluePos);if(ticks%2===0)bluePos=fleeStep(bluePos,redPos);place(blue,bluePos);place(red,redPos);detail.textContent="Время матча: "+(ticks*.45).toFixed(1)+" с · Синий ИИ: ("+bluePos.x+", "+bluePos.y+") · Красный ИИ: ("+redPos.x+", "+redPos.y+")";
-   if(Math.hypot(bluePos.x-redPos.x,bluePos.y-redPos.y)<=1){ended=true;summary.textContent="Матч завершён: красный ИИ догнал синего за "+(ticks*.45).toFixed(1)+" с.";h.textContent="Победа красного ИИ";}
-   else if(ticks>=200){ended=true;summary.textContent="Матч завершён по лимиту времени — синий ИИ выжил.";h.textContent="Победа синего ИИ";}
- }
- place(blue,bluePos);place(red,redPos);summary.textContent="Матч запущен. Наблюдай за перемещением двух ИИ.";if(arenaTimer)clearInterval(arenaTimer);arenaTimer=setInterval(tick,450);
-}
-document.getElementById("runSimulations").addEventListener("click",async()=>{const b=document.getElementById("runSimulations");if(arenaTimer){clearInterval(arenaTimer);arenaTimer=null;}b.disabled=true;b.textContent="Создаю карту…";try{const r=await fetch("/admin/simulations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({count:1})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка запуска");if(!d.runs||!d.runs.length)throw new Error("Сервер не вернул карту");renderLiveMatch(d.runs[0]);}catch(e){document.getElementById("simSummary").textContent=e.message;}finally{b.disabled=false;b.textContent="▶ Запустить матч ИИ против ИИ";}});
+async function loadSimulations(){document.getElementById("simSummary").textContent="Запусти настоящую игру: управляй игроком, а ИИ будет действовать по игровой логике.";document.getElementById("simulations").replaceChildren();}
+document.getElementById("runSimulations").addEventListener("click",()=>{
+ const box=document.getElementById("simulations"),summary=document.getElementById("simSummary");
+ box.replaceChildren();
+ const frame=document.createElement("iframe");
+ frame.src="/game?mode=player-vs-ai";
+ frame.title="CASE Online — игрок против ИИ";
+ frame.allow="fullscreen";
+ frame.style.cssText="display:block;width:100%;height:min(78vh,760px);min-height:480px;border:1px solid #454d60;border-radius:12px;background:#05090c";
+ box.appendChild(frame);
+ summary.textContent="Открыта настоящая игровая сцена. Играй за выжившего против ИИ; управление и условия победы — как в обычной игре.";
+ frame.scrollIntoView({behavior:"smooth",block:"start"});
+});
 async function loadLogs(){try{const r=await fetch("/admin/logs",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить журнал");const d=await r.json(),box=document.getElementById("eventLogs");box.replaceChildren();if(!d.logs.length){box.textContent="Событий пока нет.";return;}d.logs.slice().reverse().forEach(item=>{const p=document.createElement("p");p.textContent=(item.actor||"System")+" — "+(item.action||item.event||"Событие")+" — "+new Date(item.time).toLocaleString("ru-RU");box.appendChild(p);});}catch(e){document.getElementById("eventLogs").textContent=e.message;}}
 const statusBox=document.getElementById("status");
 const statusText=document.getElementById('statusText');
