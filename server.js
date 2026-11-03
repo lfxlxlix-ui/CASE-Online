@@ -10,7 +10,7 @@ const LOG_FILE = path.join(__dirname, "case-online-logs.json");
 const adminSessions = new Set();
 let eventLogs = [];
 try { eventLogs = JSON.parse(fs.readFileSync(LOG_FILE, "utf8")); if (!Array.isArray(eventLogs)) eventLogs = []; } catch { eventLogs = []; }
-function addLog(event) { eventLogs.push({ event, time: new Date().toISOString() }); eventLogs = eventLogs.slice(-200); try { fs.writeFileSync(LOG_FILE, JSON.stringify(eventLogs, null, 2)); } catch (error) { console.error("Log write failed:", error.message); } }
+function addLog(actor, action) { eventLogs.push({ actor, action, time: new Date().toISOString() }); eventLogs = eventLogs.slice(-200); try { fs.writeFileSync(LOG_FILE, JSON.stringify(eventLogs, null, 2)); } catch (error) { console.error("Log write failed:", error.message); } }
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 
 let maintenance = {
@@ -125,7 +125,7 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 <script>
 const gate=document.getElementById("secondGate"),panel=document.getElementById("adminPanel");
 document.getElementById("unlockForm").addEventListener("submit",async e=>{e.preventDefault();const note=document.getElementById("unlockNotice");note.textContent="Проверяю…";try{const r=await fetch("/admin/unlock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("adminPassword").value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка входа");gate.hidden=true;panel.hidden=false;refresh();loadLogs();}catch(x){note.textContent=x.message;}});
-async function loadLogs(){try{const r=await fetch("/admin/logs",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить журнал");const d=await r.json(),box=document.getElementById("eventLogs");box.replaceChildren();if(!d.logs.length){box.textContent="Событий пока нет.";return;}d.logs.slice().reverse().forEach(item=>{const p=document.createElement("p");p.textContent=item.event+" — "+new Date(item.time).toLocaleString("ru-RU");box.appendChild(p);});}catch(e){document.getElementById("eventLogs").textContent=e.message;}}
+async function loadLogs(){try{const r=await fetch("/admin/logs",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить журнал");const d=await r.json(),box=document.getElementById("eventLogs");box.replaceChildren();if(!d.logs.length){box.textContent="Событий пока нет.";return;}d.logs.slice().reverse().forEach(item=>{const p=document.createElement("p");p.textContent=(item.actor||"System")+" — "+(item.action||item.event||"Событие")+" — "+new Date(item.time).toLocaleString("ru-RU");box.appendChild(p);});}catch(e){document.getElementById("eventLogs").textContent=e.message;}}
 const statusBox=document.getElementById("status");
 const statusText=document.getElementById('statusText');
 const messageInput=document.getElementById('message');
@@ -212,7 +212,7 @@ const server = http.createServer((req, res) => {
     if (!requireSecondFactor(req, res)) return;
     res.writeHead(202, {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});
     res.end(JSON.stringify({ok:true,message:"Restart requested"}));
-    addLog("Server restart");
+    addLog("Admin", "перезапустил сервер");
     console.warn("Admin requested a service restart.");
     setTimeout(() => process.exit(1), 300);
     return;
@@ -274,14 +274,14 @@ function handleMaintenancePost(req, res) {
         ? data.message.trim().slice(0, 500)
         : maintenance.message
     };
-    if (wasActive !== maintenance.active) addLog(maintenance.active ? "Tech jobs ON" : "Tech jobs OFF");
+    if (wasActive !== maintenance.active) addLog("Admin", maintenance.active ? "включил технические работы" : "выключил технические работы");
     broadcast();
     return sendJson(res, 200, { ok: true, ...maintenance });
   });
 }
 
 server.listen(PORT, "0.0.0.0", () => {
-  addLog("Server online");
+  addLog("System", "сервер запущен");
   console.log(`CASE Online maintenance API listening on port ${PORT}`);
   if (!TOKEN) console.warn("MAINTENANCE_TOKEN is not set; maintenance changes are disabled.");
 });
