@@ -137,4 +137,55 @@ let socket=null,currentRoom=null,isHost=false,isReady=false;function tryTagNeare
 function escapeHTML(value){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}function roomAction(event,payload){const so=getSocket();if(!so)return;so.emit(event,payload,(res)=>{if(!res?.ok)netStatus(res?.error||'Не удалось выполнить действие.');else if(res.room){currentRoom=res.room;isHost=!!res.host;drawLobby(res.room)}})}$('createRoom').onclick=()=>{isReady=false;roomAction('room:create',{name:$('playerName').value})};$('joinRoom').onclick=()=>{isReady=false;roomAction('room:join',{name:$('playerName').value,code:$('roomCode').value})};$('readyBtn').onclick=()=>{isReady=!isReady;roomAction('player:ready',isReady)};$('toggleReady').onclick=()=>{isReady=!isReady;roomAction('player:ready',isReady)};$('copyRoomCode').onclick=async()=>{try{await navigator.clipboard.writeText(currentRoom?.code||$('roomCode').value);netStatus('Код комнаты скопирован.')}catch(e){$('roomCode').focus();$('roomCode').select();netStatus('Выделил код — скопируй его вручную.')}};$('saveLoadout').onclick=()=>{const so=getSocket();if(so)so.emit('player:loadout',{survivorClass:$('survivorClass').value,animatronicChoice:$('animatronicChoice').value},res=>{if(!res?.ok)netStatus(res?.error||'Не удалось сохранить выбор.');else netStatus('Выбор сохранён. Ждём начала матча.')})};$('startBtn').onclick=()=>roomAction('game:start');$('leaveBtn').onclick=()=>{socket?.emit('room:leave');currentRoom=null;isHost=false;isReady=false;$('lobbyList').classList.add('hidden');$('loadout').classList.add('hidden');$('characterColumn').classList.add('hidden');$('lobbyTools').classList.add('hidden');$('lobbyActions').classList.add('hidden');netStatus('Ты вышел из комнаты.')};if(!document.querySelector('script[src="/socket.io/socket.io.js"]')){let sockScript=document.createElement('script');sockScript.src='/socket.io/socket.io.js';document.head.appendChild(sockScript)}
 render();
 })();
-</script></body></html>
+</script>
+<!-- CASE: Online — окно планового перезапуска -->
+<style id="case-online-maintenance-style">
+#case-online-maintenance-overlay{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(5,7,12,.88);backdrop-filter:blur(8px);font-family:Arial,sans-serif;color:#fff;text-align:center}
+#case-online-maintenance-overlay .case-maintenance-card{width:min(520px,100%);box-sizing:border-box;padding:32px 26px;border:1px solid rgba(255,255,255,.16);border-radius:18px;background:#151922;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+#case-online-maintenance-overlay h2{margin:0 0 14px;font-size:clamp(23px,5vw,32px)}
+#case-online-maintenance-overlay p{margin:0;color:#d4d8e1;font-size:16px;line-height:1.6}
+#case-online-maintenance-overlay .case-maintenance-time{margin-top:18px;color:#aeb8ca;font-size:13px}
+</style>
+<div id="case-online-maintenance-overlay" role="dialog" aria-modal="true" aria-labelledby="case-online-maintenance-title">
+  <div class="case-maintenance-card">
+    <h2 id="case-online-maintenance-title">🔧 Сервер перезапускается</h2>
+    <p>Идёт плановое техническое обслуживание. Подожди несколько минут — игра скоро снова станет доступна.</p>
+    <div class="case-maintenance-time">Обычно с 00:00 до 00:05 по московскому времени</div>
+  </div>
+</div>
+<script id="case-online-maintenance-script">
+(function(){
+  var overlay = document.getElementById('case-online-maintenance-overlay');
+  if (!overlay) return;
+  function checkMaintenance(){
+    try {
+      var parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone:'Europe/Moscow', hour:'2-digit', minute:'2-digit',
+        hourCycle:'h23'
+      }).formatToParts(new Date());
+      var hour = Number(parts.find(function(p){return p.type==='hour';}).value);
+      var minute = Number(parts.find(function(p){return p.type==='minute';}).value);
+      var active = hour === 0 && minute < 5;
+      overlay.style.display = active ? 'flex' : 'none';
+      document.documentElement.style.overflow = active ? 'hidden' : '';
+    } catch (e) { overlay.style.display = 'none'; }
+  }
+  window.caseOnlineSetMaintenance = function(active, message){
+    overlay.style.display = active ? 'flex' : 'none';
+    var p = overlay.querySelector('p');
+    if (p && message) p.textContent = message;
+    document.documentElement.style.overflow = active ? 'hidden' : '';
+  };
+  window.addEventListener('message', function(event){
+    var data = event.data;
+    if (data && data.type === 'case-online-maintenance') {
+      window.caseOnlineSetMaintenance(Boolean(data.active), data.message);
+    }
+  });
+  checkMaintenance();
+  window.setInterval(checkMaintenance, 15000);
+})();
+</script>
+<!-- /CASE: Online — окно планового перезапуска -->
+
+</body></html>
