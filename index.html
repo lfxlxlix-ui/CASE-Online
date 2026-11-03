@@ -103,7 +103,7 @@ function updateBot(dt,now){
  let waypoint=botPath[botPathIndex];
  if(waypoint&&Math.hypot(mx-waypoint.x,my-waypoint.y)<.22){botPathIndex++;waypoint=botPath[botPathIndex]}
  if(!waypoint){if(botMode==="search"){botTarget=null;botMode="patrol";botNextPatrol=0;}return}
- const a=Math.atan2(waypoint.y-my,waypoint.x-mx),step=Math.min(2.15*dt,Math.hypot(waypoint.x-mx,waypoint.y-my));
+ const a=Math.atan2(waypoint.y-my,waypoint.x-mx),step=Math.min(1*dt,Math.hypot(waypoint.x-mx,waypoint.y-my));
  const nx=mx+Math.cos(a)*step,ny=my+Math.sin(a)*step;
  if(!wall(nx,my))mx=nx;if(!wall(mx,ny))my=ny;
 }
@@ -132,7 +132,7 @@ function loop(now){
  let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;updateInteraction(dt);
  let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
  let s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
- let speed=role==='animatronic'?2.35:2.05;
+ let speed=role==='animatronic'?1:1.7;
  let dx=(Math.cos(angle)*f-Math.sin(angle)*s)*speed*dt;
  let dy=(Math.sin(angle)*f+Math.cos(angle)*s)*speed*dt;
  [px,py]=move(px,py,dx,dy);
