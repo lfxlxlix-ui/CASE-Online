@@ -426,7 +426,7 @@ function runTenSimulations() {
     return {number:i+1,result:caught?"Победа ИИ":"Победа игрока",duration,mapSize:"16×11",map,playerStart,aiStart,aiBehavior:visibility>0.55?"обнаружение и погоня":visibility>0.25?"патруль → поиск":"патруль",reason:caught?"модель оценила, что ИИ догнал игрока":"игрок успел выполнить цель по модели"};
   });
 }
-\nfunction handleSoloSession(req, res) {
+function handleSoloSession(req, res) {
   let body=""; req.on("data", c => { body += c; if (body.length > 20000) { sendJson(res,413,{error:"Payload too large"}); req.destroy(); } });
   req.on("end", () => { let d; try { d=JSON.parse(body||"{}"); } catch { return sendJson(res,400,{error:"Invalid JSON"}); }
     if (typeof d.id!=="string" || !/^[a-zA-Z0-9_-]{8,80}$/.test(d.id) || !Array.isArray(d.map) || d.map.length>40 || !Array.isArray(d.players) || d.players.length>12) return sendJson(res,400,{error:"Invalid session state"});
