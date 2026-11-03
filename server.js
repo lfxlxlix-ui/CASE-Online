@@ -244,6 +244,26 @@ const server = http.createServer((req, res) => {
     return handleMaintenancePost(req, res, "System");
   }
 
+  if (url.pathname.startsWith("/assets/")) {
+    let relativePath;
+    try { relativePath = decodeURIComponent(url.pathname.slice(1)); }
+    catch { return sendJson(res, 400, { error: "Invalid asset path" }); }
+    const assetsRoot = path.resolve(__dirname, "assets");
+    const assetPath = path.resolve(__dirname, relativePath);
+    if (!assetPath.startsWith(assetsRoot + path.sep)) return sendJson(res, 403, { error: "Forbidden" });
+    const types = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
+    fs.readFile(assetPath, (error, data) => {
+      if (error) return sendJson(res, error.code === "ENOENT" ? 404 : 500, { error: "Asset not found" });
+      res.writeHead(200, {
+        "Content-Type": types[path.extname(assetPath).toLowerCase()] || "application/octet-stream",
+        "Cache-Control": "public, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      });
+      res.end(data);
+    });
+    return;
+  }
+
   if (url.pathname === "/game" || url.pathname === "/game/") {
     const gamePath = path.join(__dirname, "index.html");
     fs.readFile(gamePath, (error, html) => {
