@@ -205,7 +205,7 @@ const server = http.createServer((req, res) => {
   if (url.pathname === "/admin/logs" && req.method === "GET") { if (!requireSecondFactor(req, res)) return; return sendJson(res, 200, { logs: eventLogs }); }
   if (url.pathname === "/admin/maintenance" && req.method === "POST") {
     if (!requireSecondFactor(req, res)) return;
-    return handleMaintenancePost(req, res);
+    return handleMaintenancePost(req, res, "Admin");
   }
 
   if (url.pathname === "/admin/restart" && req.method === "POST") {
@@ -237,7 +237,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === "/api/maintenance" && req.method === "POST") {
     if (!authorized(req)) return sendJson(res, 401, { error: "Unauthorized" });
-    return handleMaintenancePost(req, res);
+    return handleMaintenancePost(req, res, "System");
   }
 
   return sendJson(res, 404, { error: "Not found" });
@@ -246,7 +246,7 @@ const server = http.createServer((req, res) => {
 function handleUnlock(req, res) {
   let body=""; req.on("data",c=>{body+=c;}); req.on("end",()=>{let d;try{d=JSON.parse(body||"{}");}catch{return sendJson(res,400,{error:"Invalid JSON"});} if(!ADMIN_PASSWORD)return sendJson(res,503,{error:"ADMIN_PASSWORD не задана в Render."}); if(typeof d.password!=="string"||!safeEqual(d.password,ADMIN_PASSWORD))return sendJson(res,401,{error:"Неверный дополнительный пароль."}); const id=crypto.randomBytes(32).toString("hex");adminSessions.add(id);res.writeHead(200,{"Set-Cookie":"case_admin_session="+id+"; HttpOnly; Secure; SameSite=Strict; Path=/admin; Max-Age=43200","Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify({ok:true}));});
 }
-function handleMaintenancePost(req, res) {
+function handleMaintenancePost(req, res, actor = "System") {
   let body = "";
   let tooLarge = false;
   req.on("data", chunk => {
@@ -274,14 +274,14 @@ function handleMaintenancePost(req, res) {
         ? data.message.trim().slice(0, 500)
         : maintenance.message
     };
-    if (wasActive !== maintenance.active) addLog("Admin", maintenance.active ? "включил технические работы" : "выключил технические работы");
+    if (wasActive !== maintenance.active) addLog(actor, maintenance.active ? "включил технические работы" : "выключил технические работы");
     broadcast();
     return sendJson(res, 200, { ok: true, ...maintenance });
   });
 }
 
 server.listen(PORT, "0.0.0.0", () => {
-  addLog("System", "сервер запущен");
+  addLog("System", "сервер запущен / перезапущен");
   console.log(`CASE Online maintenance API listening on port ${PORT}`);
   if (!TOKEN) console.warn("MAINTENANCE_TOKEN is not set; maintenance changes are disabled.");
 });
