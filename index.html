@@ -61,34 +61,28 @@
 (()=>{'use strict';
 const canvas=document.getElementById('view'),ctx=canvas.getContext('2d',{alpha:false});
 const W=canvas.width,H=canvas.height,FOV=Math.PI/2.7;
-const map=[
-'1111111111111111',
-'1000000000000001',
-'1011100110111001',
-'1000100000100001',
-'1110101100101101',
-'1000001000000001',
-'1011001001101101',
-'1000000000000001',
-'1011011101110101',
-'1000000000000001',
-'1111111111111111'];
-const keys={};let role='survivor',running=false,angle=0,px=2.5,py=1.5,mx=12.5,my=8.5,elapsed=0,last=0,night=false,flash=true,battery=100,found=0,networkGame=false,remotePlayers={},lastNetSend=0;
+let map=[];
+function generateMap(){const rows=11,cols=16,g=Array.from({length:rows},(_,y)=>Array.from({length:cols},(_,x)=>(!x||!y||x===cols-1||y===rows-1)?'1':'0'));for(let y=2;y<rows-1;y++)for(let x=2;x<cols-1;x++)if(Math.random()<.2)g[y][x]='1';g[1][1]=g[1][2]=g[2][1]='0';g[8][14]=g[9][14]=g[8][13]='0';const seen=new Set(['1,1']),q=[[1,1]];for(let i=0;i<q.length;i++){const [x,y]=q[i];for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy,k=X+','+Y;if(X>0&&Y>0&&X<cols-1&&Y<rows-1&&g[Y][X]==='0'&&!seen.has(k)){seen.add(k);q.push([X,Y])}}}for(let y=1;y<rows-1;y++)for(let x=1;x<cols-1;x++)if(!seen.has(x+','+y))g[y][x]='1';return g.map(row=>row.join(''));}
+function openTiles(){const a=[];for(let y=1;y<map.length-1;y++)for(let x=1;x<map[0].length-1;x++)if(!wall(x+.5,y+.5))a.push({x:x+.5,y:y+.5});return a;}
+const keys={};let role='survivor',running=false,angle=0,px=2.5,py=1.5,mx=12.5,my=8.5,elapsed=0,last=0,night=false,flash=true,battery=100,found=0,fuses=[],panels=[],exitDoor=null,doorOpen=false,doorChance=false,repairing=false,repairTarget=null,networkGame=false,remotePlayers={},lastNetSend=0;
 const $=id=>document.getElementById(id);
 function wall(x,y){return y<0||y>=map.length||x<0||x>=map[0].length||map[Math.floor(y)][Math.floor(x)]==='1'}
 function move(x,y,dx,dy){if(!wall(x+dx+.14*Math.sign(dx),y))x+=dx;if(!wall(x,y+dy+.14*Math.sign(dy)))y+=dy;return[x,y]}
-function start(r){networkGame=false;remotePlayers={};role=r;px=2.5;py=1.5;angle=0;mx=12.5;my=8.5;elapsed=0;night=false;flash=true;battery=100;found=0;running=true;$('menu').classList.add('hidden');$('end').classList.add('hidden');$('hud').classList.remove('hidden');$('roleLabel').textContent=r==='survivor'?'РОЛЬ: ВЫЖИВШИЙ':'РОЛЬ: АНИМАТРОНИК';$('objective').textContent=r==='survivor'?'НАЙДИ ВЫХОД':'НАЙДИ ИГРОКА';$('hint').textContent=r==='survivor'?'WASD — движение · мышь — обзор · F — фонарь':'WASD — движение · мышь — обзор · F — ночное видение';last=performance.now();requestAnimationFrame(loop)}
+function start(r){map=generateMap();networkGame=false;remotePlayers={};role=r;px=2.5;py=1.5;angle=0;mx=12.5;my=8.5;elapsed=0;night=false;flash=true;battery=100;found=0;const spots=openTiles().filter(p=>Math.hypot(p.x-2.5,p.y-1.5)>2);spots.sort(()=>Math.random()-.5);fuses=spots.splice(0,3).map((p,i)=>({...p,id:i,taken:false}));panels=spots.splice(0,3).map((p,i)=>({...p,id:i,repaired:false,progress:0}));exitDoor={x:14.5,y:8.5};doorOpen=false;doorChance=Math.random()<.03;repairing=false;repairTarget=null;running=true;$('menu').classList.add('hidden');$('end').classList.add('hidden');$('hud').classList.remove('hidden');$('roleLabel').textContent=r==='survivor'?'РОЛЬ: ВЫЖИВШИЙ':'РОЛЬ: АНИМАТРОНИК';$('objective').textContent=r==='survivor'?'НАЙДИ ВЫХОД':'НАЙДИ ИГРОКА';$('hint').textContent=r==='survivor'?'WASD — движение · мышь — обзор · F — фонарь':'WASD — движение · мышь — обзор · F — ночное видение';last=performance.now();requestAnimationFrame(loop)}
 function castRay(a){let d=0,step=.035;while(d<18){d+=step;let x=px+Math.cos(a)*d,y=py+Math.sin(a)*d;if(wall(x,y))return{d:d*Math.cos(a-angle),x,y}}return{d:18,x:px+Math.cos(a)*18,y:py+Math.sin(a)*18}}
+function aimedObject(){let best=null,score=.12;for(const [type,list] of [['fuse',fuses.filter(x=>!x.taken)],['panel',panels.filter(x=>!x.repaired)],['door',[exitDoor]]])for(const o of list){if(!o)continue;const d=Math.hypot(o.x-px,o.y-py),a=Math.atan2(o.y-py,o.x-px)-angle,err=Math.abs(Math.atan2(Math.sin(a),Math.cos(a)));if(d<2.4&&err<score){score=err;best={type,obj:o,d}}}return best}
+function drawObjects(){for(const [type,list] of [['fuse',fuses.filter(x=>!x.taken)],['panel',panels.filter(x=>!x.repaired)],['door',[exitDoor]]])for(const o of list){if(!o)continue;const d=Math.hypot(o.x-px,o.y-py),a=Math.atan2(o.y-py,o.x-px)-angle,b=Math.atan2(Math.sin(a),Math.cos(a));if(Math.abs(b)>FOV/2||d<.2)continue;const sx=(.5+b/FOV)*W,sz=Math.min(H,H/d*.22);ctx.fillStyle=type==='fuse'?'#ffe36b':type==='panel'?'#ff9b42':doorOpen?'#53e59a':'#e54855';ctx.fillRect(sx-sz*.35,H/2-sz*.45,sz*.7,sz*.9);}}
+function updateInteraction(dt){const target=aimedObject();repairTarget=target;if(target&&target.type==='door'&&doorOpen)$('hint').textContent='ВЫХОД ОТКРЫТ — ПРОЙДИ ЧЕРЕЗ ДВЕРЬ';else if(target&&target.type==='door')$('hint').textContent='ДВЕРЬ ЗАКРЫТА — НУЖНО ПОЧИНИТЬ ПАНЕЛИ';else if(target&&target.type==='fuse')$('hint').textContent='ПРЕДОХРАНИТЕЛЬ — ПКМ: ПОДОБРАТЬ';else if(target&&target.type==='panel')$('hint').textContent='ЭЛЕКТРОПАНЕЛЬ — ЗАЖМИ E ДЛЯ РЕМОНТА';else $('hint').textContent='WASD — движение · мышь — обзор · F — фонарь';if(repairing&&keys.e&&target?.type==='panel'&&fuses.every(f=>f.taken)){target.obj.progress=Math.min(1,target.obj.progress+dt*.1);if(target.obj.progress>=1){target.obj.repaired=true;repairing=false;if(panels.every(p=>p.repaired)||doorChance&&panels.filter(p=>p.repaired).length>=2)doorOpen=true;}}}
 function render(){ctx.fillStyle=role==='animatronic'&&night?'#071b20':'#080d12';ctx.fillRect(0,0,W,H/2);ctx.fillStyle=role==='animatronic'&&night?'#102b2d':'#17191b';ctx.fillRect(0,H/2,W,H/2);
 for(let x=0;x<W;x++){let a=angle-FOV/2+x/W*FOV,r=castRay(a),d=Math.max(.08,r.d),height=Math.min(H,H/d),shade=Math.max(8,Math.min(190,150/(1+d*.17)));let isNight=role==='animatronic'&&night;ctx.fillStyle=isNight?'rgb('+Math.floor(shade*.22)+','+Math.floor(shade*1.1)+','+Math.floor(shade*.95)+')':'rgb('+Math.floor(shade*.65)+','+Math.floor(shade*.78)+','+Math.floor(shade*.85)+')';ctx.fillRect(x,(H-height)/2,1,height);if((Math.floor(r.x*4)+Math.floor(r.y*4))%3===0){ctx.fillStyle=isNight?'#12383a':'#303d43';ctx.fillRect(x,(H-height)/2+height*.55,1,1)}}
-if(!networkGame){let dx=mx-px,dy=my-py,dist=Math.hypot(dx,dy),bearing=Math.atan2(dy,dx)-angle;bearing=Math.atan2(Math.sin(bearing),Math.cos(bearing));if(Math.abs(bearing)<FOV/2&&dist>.2){let sx=(.5+bearing/FOV)*W,sz=Math.min(H,H/dist*.52);if(role==='animatronic'&&night||dist<4.2){ctx.fillStyle=role==='animatronic'&&night?'#62ffe2':'#761e2b';ctx.fillRect(sx-sz*.12,H/2-sz*.35,sz*.24,sz*.7);ctx.fillStyle='#ff4e64';ctx.fillRect(sx-sz*.08,H/2-sz*.17,sz*.045,sz*.035);ctx.fillRect(sx+sz*.035,H/2-sz*.17,sz*.045,sz*.035)}}}
+drawObjects();if(!networkGame){let dx=mx-px,dy=my-py,dist=Math.hypot(dx,dy),bearing=Math.atan2(dy,dx)-angle;bearing=Math.atan2(Math.sin(bearing),Math.cos(bearing));if(Math.abs(bearing)<FOV/2&&dist>.2){let sx=(.5+bearing/FOV)*W,sz=Math.min(H,H/dist*.52);if(role==='animatronic'&&night||dist<4.2){ctx.fillStyle=role==='animatronic'&&night?'#62ffe2':'#761e2b';ctx.fillRect(sx-sz*.12,H/2-sz*.35,sz*.24,sz*.7);ctx.fillStyle='#ff4e64';ctx.fillRect(sx-sz*.08,H/2-sz*.17,sz*.045,sz*.035);ctx.fillRect(sx+sz*.035,H/2-sz*.17,sz*.045,sz*.035)}}}
 for(const p of Object.values(remotePlayers)){let dx=p.x-px,dy=p.y-py,dist=Math.hypot(dx,dy),bearing=Math.atan2(dy,dx)-angle;bearing=Math.atan2(Math.sin(bearing),Math.cos(bearing));if(Math.abs(bearing)<FOV/2&&dist>.2&&(role==='animatronic'&&night||dist<5)){let sx=(.5+bearing/FOV)*W,sz=Math.min(H,H/dist*.5);ctx.fillStyle=p.role==='animatronic'?'#4fffe0':'#8b2532';ctx.fillRect(sx-sz*.13,H/2-sz*.34,sz*.26,sz*.68);ctx.fillStyle='#ff5265';ctx.fillRect(sx-sz*.075,H/2-sz*.16,sz*.045,sz*.035);ctx.fillRect(sx+sz*.03,H/2-sz*.16,sz*.045,sz*.035)}}
 if(role==='survivor'){let grd=ctx.createRadialGradient(W/2,H/2,4,W/2,H/2,flash?H*.65:H*.18);grd.addColorStop(0,'#00000000');grd.addColorStop(.55,night?'#00000010':'#00000044');grd.addColorStop(1,'#000000f5');ctx.fillStyle=grd;ctx.fillRect(0,0,W,H)}else if(night){ctx.fillStyle='#2dffe21c';ctx.fillRect(0,0,W,H)}
 }
 function end(title,text){running=false;$('endTitle').textContent=title;$('endText').textContent=text;$('end').classList.remove('hidden')}
 function loop(now){
  if(!running)return;
- let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;
+ let dt=Math.min(.04,(now-last)/1000);last=now;elapsed+=dt;updateInteraction(dt);
  let f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
  let s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
  let speed=role==='animatronic'?2.35:2.05;
@@ -101,7 +95,7 @@ function loop(now){
   if(!battery)flash=false;
   if(!networkGame&&elapsed>12){let a=Math.atan2(py-my,px-mx);[mx,my]=move(mx,my,Math.cos(a)*.58*dt,Math.sin(a)*.58*dt)}
   if(!networkGame&&dist<.45){end('ТЕБЯ ПОЙМАЛИ','Существо настигло тебя в коридоре. Вернись в меню и попробуй снова.');return}
-  if(!networkGame&&px>14.1&&py>7&&py<9){end('ТЫ ВЫБРАЛСЯ','Ты добрался до выхода. Это пока тестовая карта.');return}
+  if(!networkGame&&doorOpen&&px>14.1&&py>7&&py<9){end('ТЫ ВЫБРАЛСЯ','Ты добрался до выхода. Это пока тестовая карта.');return}
   $('objective').textContent='ФОНАРЬ '+Math.round(battery)+'% · НАЙДИ ВЫХОД';
  }else{
   $('objective').textContent=night?'НОЧНОЕ ЗРЕНИЕ ВКЛЮЧЕНО':'ПОИСК ИГРОКОВ';
@@ -118,10 +112,10 @@ window.addEventListener('keydown',e=>{
  const k=controlKey(e);keys[k]=true;
  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
  if(k==='f'&&running){if(role==='animatronic')night=!night;else if(battery>0)flash=!flash}
- if(k==='e'&&running&&networkGame&&role==='animatronic')tryTagNearest();
+ if(k==='e'&&running&&networkGame&&role==='animatronic')tryTagNearest();if(k==='e'&&running&&role==='survivor'&&repairTarget?.type==='panel'&&fuses.every(f=>f.taken))repairing=true;
  if(k==='escape'&&running){running=false;$('hud').classList.add('hidden');$('menu').classList.remove('hidden')}
 });
-window.addEventListener('keyup',e=>{keys[controlKey(e)]=false});
+window.addEventListener('keyup',e=>{keys[controlKey(e)]=false;if(controlKey(e)==='e')repairing=false;});canvas.addEventListener('contextmenu',e=>{e.preventDefault();if(!running||role!=='survivor')return;const t=aimedObject();if(t?.type==='fuse'){t.obj.taken=true;found++;$('hint').textContent='ПРЕДОХРАНИТЕЛЬ ПОДОБРАН';}});
 canvas.addEventListener('click',()=>{if(running&&document.pointerLockElement!==canvas&&matchMedia('(pointer:fine)').matches)canvas.requestPointerLock?.()});
 document.addEventListener('mousemove',e=>{if(running&&document.pointerLockElement===canvas)angle+=e.movementX*.0035});
 let touchX=null;canvas.addEventListener('touchstart',e=>{if(e.touches.length){touchX=e.touches[0].clientX}},{passive:true});canvas.addEventListener('touchmove',e=>{if(touchX!==null&&e.touches.length){let nx=e.touches[0].clientX;angle+=(nx-touchX)*.009;touchX=nx}},{passive:true});canvas.addEventListener('touchend',()=>touchX=null);
