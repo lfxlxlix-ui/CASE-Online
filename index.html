@@ -93,7 +93,7 @@ function updateSurvivorAI(dt,now){
  for(const k of ["w","a","s","d"])keys[k]=false;
  if(minigame){
   // The AI times repair inputs inside the moving success zone, using the same repair minigame as a human.
-  if(now>=aiActionAt){minigame.phase=minigame.zone+minigame.width*.5;keys.e=true;window.dispatchEvent(new KeyboardEvent("keydown",{key:"e",code:"KeyE",bubbles:true}));window.dispatchEvent(new KeyboardEvent("keyup",{key:"e",code:"KeyE",bubbles:true}));aiActionAt=now+650;}
+  if(now>=aiActionAt){const m=minigame;m.phase=m.zone+m.width*.5;m.panel.progress=Math.min(100,m.panel.progress+10);if(m.panel.progress>=100){m.panel.repaired=true;minigame=null;if(panels.every(p=>p.repaired)||(doorChance&&panels.filter(p=>p.repaired).length>=2)){doorOpen=true;doorOpenUntil=Infinity;}}else{m.zone=Math.random()*(1-m.width);m.phase=0;}aiActionAt=now+650;}
   return;
  }
  let target=null,key="";
