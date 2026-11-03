@@ -119,13 +119,14 @@ small{display:block;color:#aab5cb;line-height:1.5;margin-top:18px}
 <button class="start" id="enable" type="button">Включить обслуживание</button>
 <button class="stop" id="disable" type="button">Выключить обслуживание</button>
 </div>
-<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
+<button class="restart" id="restart" type="button">↻ Перезапустить сервер</button><h2>Просмотр матчей</h2><p>Активные одиночные сессии и сетевые матчи. Обновляется каждые 3 секунды.</p><div id="matches"><p>Загрузка матчей…</p></div><h2>Журнал событий</h2><div id="eventLogs" aria-live="polite">Загрузка…</div>
 <div id="notice" role="status" aria-live="polite"></div>
 <small>Перезапуск временно отключит API. Текущее состояние обслуживания сбросится после перезапуска. Доступ защищён входом администратора.</small>
 </main>
 <script>
 const gate=document.getElementById("secondGate"),panel=document.getElementById("adminPanel");
-document.getElementById("unlockForm").addEventListener("submit",async e=>{e.preventDefault();const note=document.getElementById("unlockNotice");note.textContent="Проверяю…";try{const r=await fetch("/admin/unlock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("adminPassword").value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка входа");gate.hidden=true;panel.hidden=false;refresh();loadLogs();}catch(x){note.textContent=x.message;}});
+document.getElementById("unlockForm").addEventListener("submit",async e=>{e.preventDefault();const note=document.getElementById("unlockNotice");note.textContent="Проверяю…";try{const r=await fetch("/admin/unlock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("adminPassword").value})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка входа");gate.hidden=true;panel.hidden=false;refresh();loadLogs();loadMatches();setInterval(loadMatches,3000);}catch(x){note.textContent=x.message;}});
+async function loadMatches(){try{const r=await fetch("/admin/matches",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить матчи");const d=await r.json(),box=document.getElementById("matches");box.replaceChildren();if(!d.matches.length){box.textContent="Активных матчей нет. Открой игру и начни раунд.";return;}d.matches.forEach(m=>{const card=document.createElement("section");card.style.cssText="margin:12px 0;padding:12px;border:1px solid #454d60;border-radius:12px;background:#11151d";const title=document.createElement("h3");title.textContent=(m.mode==="solo"?"Одиночный матч":"Сетевой матч")+" · "+(m.code||"без кода");card.appendChild(title);const meta=document.createElement("p");meta.textContent="Игроков: "+(m.players||[]).length+" · Время: "+Math.floor((m.elapsed||0)/60)+":"+String(Math.floor((m.elapsed||0)%60)).padStart(2,"0");card.appendChild(meta);if(Array.isArray(m.map)&&m.map.length){const grid=document.createElement("div");grid.style.cssText="display:grid;grid-template-columns:repeat("+Math.max(1,m.map[0].length)+",minmax(2px,1fr));gap:1px;max-width:100%;aspect-ratio:"+m.map[0].length+"/"+m.map.length+";background:#202832;overflow:hidden";m.map.forEach(row=>{for(const ch of row){const cell=document.createElement("i");cell.style.cssText="display:block;min-width:0;min-height:0;background:"+(ch==="1"?"#4b5563":"#18222b");grid.appendChild(cell);}});(m.objects||[]).forEach(o=>{const dot=document.createElement("span");dot.title=o.type+" "+o.state;dot.style.cssText="position:absolute;width:8px;height:8px;border-radius:50%;background:"+(o.type==="panel"?(o.state==="repaired"?"#36d399":"#ff9b42"):o.type==="fuse"?"#ffe36b":o.type==="door"?(o.state==="open"?"#36d399":"#e54855"):"#fff");dot.style.left=(o.x/(m.map[0].length)*100)+"%";dot.style.top=(o.y/m.map.length*100)+"%";grid.style.position="relative";grid.appendChild(dot);});(m.players||[]).forEach(p=>{const dot=document.createElement("span");dot.title=(p.name||"Игрок")+" · "+p.role;dot.style.cssText="position:absolute;width:10px;height:10px;border:2px solid #fff;border-radius:50%;background:"+(p.role==="animatronic"?"#f04452":"#38a5ff")+";left:"+(p.x/m.map[0].length*100)+"%;top:"+(p.y/m.map.length*100)+"%;transform:translate(-50%,-50%) rotate("+(p.angle||0)+"rad)";grid.appendChild(dot);});card.appendChild(grid);}const list=document.createElement("p");list.textContent=(m.players||[]).map(p=>(p.name||"Игрок")+" ("+p.role+")").join(" · ");card.appendChild(list);box.appendChild(card);});}catch(e){document.getElementById("matches").textContent=e.message;}}
 async function loadLogs(){try{const r=await fetch("/admin/logs",{cache:"no-store"});if(!r.ok)throw new Error("Не удалось загрузить журнал");const d=await r.json(),box=document.getElementById("eventLogs");box.replaceChildren();if(!d.logs.length){box.textContent="Событий пока нет.";return;}d.logs.slice().reverse().forEach(item=>{const p=document.createElement("p");p.textContent=(item.actor||"System")+" — "+(item.action||item.event||"Событие")+" — "+new Date(item.time).toLocaleString("ru-RU");box.appendChild(p);});}catch(e){document.getElementById("eventLogs").textContent=e.message;}}
 const statusBox=document.getElementById("status");
 const statusText=document.getElementById('statusText');
@@ -204,6 +205,8 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === "/admin/unlock" && req.method === "POST") { return handleUnlock(req, res); }
   if (url.pathname === "/admin/logs" && req.method === "GET") { if (!requireSecondFactor(req, res)) return; return sendJson(res, 200, { logs: eventLogs }); }
+  if (url.pathname === "/admin/matches" && req.method === "GET") { if (!requireSecondFactor(req, res)) return; return sendJson(res, 200, { matches: matchOverview() }); }
+  if (url.pathname === "/api/session" && req.method === "POST") { return handleSoloSession(req, res); }
   if (url.pathname === "/admin/maintenance" && req.method === "POST") {
     if (!requireSecondFactor(req, res)) return;
     return handleMaintenancePost(req, res, "Admin");
@@ -250,6 +253,14 @@ const io = new Server(server, {
   maxHttpBufferSize: 1e5
 });
 const rooms = new Map();
+const soloSessions = new Map();
+function cleanSoloSessions() { const cutoff = Date.now() - 12000; for (const [id, session] of soloSessions) if (session.updatedAt < cutoff) soloSessions.delete(id); }
+function matchOverview() {
+  cleanSoloSessions();
+  const solo = [...soloSessions.values()].map(s => ({...s, mode: "solo"}));
+  const multi = [...rooms.values()].filter(r => r.status === "playing").map(r => ({code:r.code, mode:"multiplayer", status:r.status, updatedAt:Date.now(), map:r.map || null, players:[...r.players.values()].map(p=>({id:p.id,name:p.name,role:p.role,x:p.x,y:p.y,angle:p.angle}))}));
+  return [...solo, ...multi];
+}
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function makeRoomCode() {
   let code;
@@ -286,7 +297,7 @@ function leaveRoom(socket) {
 io.on("connection", socket => {
   socket.on("room:create", (data={}, ack) => {
     leaveRoom(socket);
-    const room = {code:makeRoomCode(),hostId:socket.id,status:"waiting",maxPlayers:5,players:new Map()};
+    const room = {code:makeRoomCode(),hostId:socket.id,status:"waiting",maxPlayers:5,players:new Map(),map:null};
     room.players.set(socket.id,{id:socket.id,name:String(data.name||"Игрок").trim().slice(0,18)||"Игрок",ready:false,role:null,x:2.5,y:1.5,angle:0,survivorClass:"aimer",animatronicChoice:"owl"});
     rooms.set(room.code,room);socket.join(room.code);socket.data.roomCode=room.code;
     if(typeof ack==="function")ack({ok:true,room:publicRoom(room),host:true});
@@ -347,6 +358,18 @@ io.on("connection", socket => {
   socket.on("room:leave",()=>leaveRoom(socket));
   socket.on("disconnect",()=>leaveRoom(socket));
 });
+
+function handleSoloSession(req, res) {
+  let body=""; req.on("data", c => { body += c; if (body.length > 20000) { sendJson(res,413,{error:"Payload too large"}); req.destroy(); } });
+  req.on("end", () => { let d; try { d=JSON.parse(body||"{}"); } catch { return sendJson(res,400,{error:"Invalid JSON"}); }
+    if (typeof d.id!=="string" || !/^[a-zA-Z0-9_-]{8,80}$/.test(d.id) || !Array.isArray(d.map) || d.map.length>40 || !Array.isArray(d.players) || d.players.length>12) return sendJson(res,400,{error:"Invalid session state"});
+    const map=d.map.map(row=>String(row).slice(0,60));
+    const players=d.players.map(p=>({name:String(p.name||"Игрок").slice(0,24),role:String(p.role||"survivor").slice(0,20),x:Number(p.x)||0,y:Number(p.y)||0,angle:Number(p.angle)||0}));
+    const objects=Array.isArray(d.objects)?d.objects.slice(0,30).map(o=>({type:String(o.type||"").slice(0,16),x:Number(o.x)||0,y:Number(o.y)||0,state:String(o.state||"").slice(0,20)})):[];
+    soloSessions.set(d.id,{id:d.id,code:String(d.code||"").slice(0,8),status:"playing",updatedAt:Date.now(),map,players,objects,elapsed:Math.max(0,Number(d.elapsed)||0)});
+    return sendJson(res,200,{ok:true});
+  });
+}
 
 function handleUnlock(req, res) {
   let body=""; req.on("data",c=>{body+=c;}); req.on("end",()=>{let d;try{d=JSON.parse(body||"{}");}catch{return sendJson(res,400,{error:"Invalid JSON"});} if(!ADMIN_PASSWORD)return sendJson(res,503,{error:"ADMIN_PASSWORD не задана в Render."}); if(typeof d.password!=="string"||!safeEqual(d.password,ADMIN_PASSWORD))return sendJson(res,401,{error:"Неверный дополнительный пароль."}); const id=crypto.randomBytes(32).toString("hex");adminSessions.add(id);res.writeHead(200,{"Set-Cookie":"case_admin_session="+id+"; HttpOnly; Secure; SameSite=Strict; Path=/admin; Max-Age=43200","Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify({ok:true}));});
